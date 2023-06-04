@@ -49,9 +49,13 @@ class RegLstm(nn.Module):
         reg_y = reg_y.view(seq_len,batch_size,-1)
         return reg_y
 
+def learn():
+    data = load_data()
+    
+    return 0
+
 
 
 
 if __name__ == "__main__":
-    load_data()
-    
+    learn()
