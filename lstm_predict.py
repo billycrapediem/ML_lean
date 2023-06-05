@@ -63,7 +63,7 @@ def learn():
     batch_size = 12 * 4
     input_dim = 3
     output_dim = 1
-    mid_dim = 8
+    mid_dim = 50
     mid_layers = 1
 
     data = load_data()
@@ -79,17 +79,15 @@ def learn():
     train_y = train_y.reshape((train_size,output_dim))
     
     ##模型建立
-    net = RegLstm(input_dim, mid_dim,output_dim, mid_layers)
-    optimizer = torch.optim.Adam(net.parameters(),lr = (1e-6))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = RegLstm(input_dim, mid_dim,output_dim, mid_layers).to(device)
+    optimizer = torch.optim.Adam(net.parameters(),lr = (1e-2))
 
-    var_x = torch.tensor(train_x,dtype=torch.float32)
-    var_y = torch.tensor(train_y,dtype=torch.float32)
+    var_x = torch.tensor(train_x,dtype=torch.float32,device=device)
+    var_y = torch.tensor(train_y,dtype=torch.float32,device=device)
 
     batch_x = list()
     batch_y = list()
-    with torch.no_grad():
-        weights = np.tanh(np.arange(len(train_y)) * (np.e / len(train_y)))
-        weights = torch.tensor(weights, dtype=torch.float32)
 
     for i in range (batch_size):
         j = train_size - i
@@ -99,16 +97,19 @@ def learn():
     batch_x = pad_sequence(batch_x)
     batch_y = pad_sequence(batch_y)
 
+    with torch.no_grad():
+        weights = np.tanh(np.arange(len(train_y) * (np.e/ len (train_y))))
+        weights = torch.tensor(weights, dtype= torch.float32, device=device)
 
-    for epi in range(300):
+
+    for epi in range(1000):
         pred_y = net(batch_x)
         loss = (pred_y - batch_y) ** 2 * weights
         loss = loss.mean()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if epi % 30 == 0:
-    
+        if epi % 1000 == 0:
             print('Epoch: {:4}, Loss: {:.5f}'.format(epi, loss.item()))
     
     torch.save(net,"net.pth")
@@ -120,7 +121,7 @@ def learn():
     test_x = data_x.copy()
     test_x[train_size:, 0] = 0
     test_x = test_x[:, np.newaxis, :]
-    test_x = torch.tensor(test_x, dtype=torch.float32)
+    test_x = torch.tensor(test_x, dtype=torch.float32,device=device)
     for i in range(train_size, len(data) - 2):
         test_y = net_new(test_x[:i])
         test_x[i, 0, 0] = test_y[-1]
