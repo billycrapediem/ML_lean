@@ -160,8 +160,8 @@ def training(batch_size, n_epoch, lr, model_dir, train, valid, model, device):
             labels = labels.to(device, dtype=torch.float) # device為 "cuda"，將 labels 轉成 torch.cuda.FloatTensor，因為等等要餵進 criterion，所以型態要是 float
             optimizer.zero_grad() # 由於 loss.backward() 的 gradient 會累加，所以每次餵完一個 batch 後需要歸零
             outputs = model(inputs) # 將 input 餵給模型
-            outputs = outputs.squeeze() # 去掉最外面的 dimension，好讓 outputs 可以餵進 criterion()
-            loss = criterion(outputs, labels) # 計算此時模型的 training loss
+            labels = labels.view(-1,1)
+            loss = criterion(outputs, labels)
             loss.backward() # 算 loss 的 gradient
             optimizer.step() # 更新訓練模型的參數
             correct = evaluation(outputs, labels) # 計算此時模型的 training accuracy
@@ -179,7 +179,7 @@ def training(batch_size, n_epoch, lr, model_dir, train, valid, model, device):
                 inputs = inputs.to(device, dtype=torch.long) # device 為 "cuda"，將 inputs 轉成 torch.cuda.LongTensor
                 labels = labels.to(device, dtype=torch.float) # device 為 "cuda"，將 labels 轉成 torch.cuda.FloatTensor，因為等等要餵進 criterion，所以型態要是 float
                 outputs = model(inputs) # 將 input 餵給模型
-                outputs = outputs.squeeze() # 去掉最外面的 dimension，好讓 outputs 可以餵進 criterion()
+                labels = labels.view(-1,1)
                 loss = criterion(outputs, labels) # 計算此時模型的 validation loss
                 correct = evaluation(outputs, labels) # 計算此時模型的 validation accuracy
                 total_acc += (correct / batch_size)
