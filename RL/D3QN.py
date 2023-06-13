@@ -4,9 +4,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import random
-import gym
 import matplotlib.pyplot as plt
 from collections import deque
+from case3d_env import chase3D
 
 # Define the Q-Network architecture
 class QNetwork(nn.Module):
@@ -98,52 +98,60 @@ class DQNAgent:
     def update_target_model(self):
         self.target_model.load_state_dict(self.model.state_dict())
 
-# Create the CartPole environment
-env = gym.make('CartPole-v0')
-state_size = env.observation_space.shape[0]
-action_size = env.action_space.n
-print(state_size)
-# Create the DQN agent
+
+env = chase3D()
+state_size = env.state_size
+action_size = env.action_size
 agent = DQNAgent(state_size, action_size)
 
 # Training parameters
-num_episodes = 200
-total_reward = 0
-
+num_episodes = 10
 scores = []  # List to store the scores
 for episode in range (num_episodes):
     for epcho in range( 10 ):
         state = env.reset()
         done = False
+        caputred = False
         total_reward = 0
-        while not done:
+        while  not done and not  caputred:
             # visualize the interaction
             #env.render()
 
             action = agent.act(state)
-            next_state, reward, done, _ = env.step(action)
-            # Modify the reward to encourage longer pole balancing
-            reward = reward if not done else -10
+            next_state, reward, caputred, done = env.step(action)
 
+            # Modify the reward to encourage longer pole balancing
+            reward = reward  if not caputred else 10
+            reward = float(reward)
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             total_reward += reward
-        
+            
+
         agent.replay()
+        if epcho % 1 == 0:
+            print(f"episode: {epcho}, Score: {total_reward}")
         scores.append(total_reward)
     agent.update_target_model()
 
-
-    # Print the episode score every 10 episodes
-    if episode % 10 == 0:
-        print(f"Episode: {episode}, Score: {total_reward}")
-
-# Close the environment
-env.close()
-
-# Plot the scores
 plt.plot(scores)
 plt.xlabel('Episode')
 plt.ylabel('Score')
 plt.title('Training Scores')
 plt.show()
+
+
+### start testing
+done = False
+captured = False
+state = env.reset()
+num = 0
+while not done and not caputred:
+    action = agent.act(state)
+    print(env.agent.cur_point)
+    next_state, reward, caputred,done = env.step(action,True)
+    state = next_state
+    num += 1
+    print(f"step:{num}, score: {reward}" )
+
+
