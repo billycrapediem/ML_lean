@@ -40,10 +40,14 @@ class AStar:
         self.closed_list = []
         self.parent = dict()
         self.g_value = dict()
+    
     def heuristics(self, cur_point):
         #Manhattan Distance
         value_f = abs(cur_point[0] - self.end_point[0]) + abs(cur_point[1] - self.end_point[1]) + abs(cur_point[2] - self.end_point[2])
         return value_f
+    
+
+    
     def real_distance(self,cur_point, parents):
         cnt = 0
         for i in range(3): 
@@ -53,6 +57,9 @@ class AStar:
     def f_value(self,cur_point):
         ans = self.heuristics(cur_point) + self.g_value[cur_point]
         return ans
+    
+
+    
     def get_successor(self, cur_point):
         successors = []
         for i in range (-1,2):
@@ -60,34 +67,36 @@ class AStar:
                 for k in range(-1,2):
                     if i != 0 or j != 0 or k != 0:
                         if not isCollision(self.map,(cur_point[0]+i,cur_point[1]+j,cur_point[2]+k)): 
-                            successors.append((cur_point[0]+i,cur_point[1]+j,cur_point[2]+k))      
+                            successors.append((cur_point[0]+i,cur_point[1]+j,cur_point[2]+k))
+        
         return successors
+    
     def check_end_point(self, cur_point):
         for i in range(3):
             if cur_point[i] != self.end_point[i]:
                 return False
-        return True  
+        return True
+    
     def extract_path(self,cur_point):
         path = []
         while self.parent[cur_point] != cur_point:
             path.append(cur_point)
             cur_point = self.parent[cur_point]
         return path
+    
     def search(self):
-        if self.map.map[self.start_point[0]][self.start_point[1]][self.start_point[2]] == 1:
-            return None
-        if self.map.map[self.end_point[0]][self.end_point[1]][self.end_point[2]] == 1:
+        if self.map.map[self.start_point[0]][self.start_point[1]][self.start_point[2]] != 0:
             return None
         self.parent[self.start_point] = self.start_point
         self.g_value[self.start_point] = 0
         self.g_value[self.end_point] = math.inf
-        heapq.heappush(self.open_list,(0,self.start_point))
+        heapq.heappush(self.open_list,(0,self.start_point)) 
         while self.open_list:
             _,cur_point = heapq.heappop(self.open_list)
             self.closed_list.append(cur_point)
             ## sus is the end point
             if self.check_end_point(cur_point):
-                return self.extract_path(self.end_point)
+                break
             successors = self.get_successor(cur_point = cur_point)
             for sus_point in successors:
                 ## compute g and h value for each successor
@@ -158,7 +167,7 @@ class chase3D():
         self.time_limits = 100
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
-        self.limits = 10
+        self.limits = 20
         
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         #self.map.add_blocker()
