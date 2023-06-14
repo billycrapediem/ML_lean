@@ -74,15 +74,15 @@ class AStar:
             cur_point = self.parent[cur_point]
         return path
     def search(self):
-        if self.map.map[self.start_point[0]][self.start_point[1]][self.start_point[2]] == 1:
-            return None
-        if self.map.map[self.end_point[0]][self.end_point[1]][self.end_point[2]] == 1:
+        if self.start_point == self.end_point:
             return None
         self.parent[self.start_point] = self.start_point
         self.g_value[self.start_point] = 0
         self.g_value[self.end_point] = math.inf
+        time = 0
         heapq.heappush(self.open_list,(0,self.start_point))
-        while self.open_list:
+        while self.open_list and time <= 1000:
+            time += 1
             _,cur_point = heapq.heappop(self.open_list)
             self.closed_list.append(cur_point)
             ## sus is the end point
@@ -98,7 +98,7 @@ class AStar:
                     self.g_value[sus_point] = new_cost
                     self.parent[sus_point] = cur_point
                     heapq.heappush(self.open_list,(self.f_value(sus_point),sus_point))
-        return self.extract_path(self.end_point)
+        return None
 class Agent:
     def __init__(self,start_point,map:ThreeDMap) -> None:
         self.cur_point = start_point
@@ -140,30 +140,30 @@ class target:
         if self.check_obstacles_path(map):
             self.AStar = AStar(self.cur_point,self.end_point,map)
             self.path = self.AStar.search()
-            if not self.path or self.path[len(self.path) -1] == self.end_point:
-                self.next_move = self.cur_point
-            else:
-                self.path.reverse
+            if self.path:
                 self.next_move = self.path.pop()
-
+            else:
+                self.next_move = self.cur_point
     def update(self,map:ThreeDMap):
         self.get_path(map)
         self.cur_point = self.next_move
-        self.next_move = self.path.pop()
+        if not self.path :
+                self.next_move = self.cur_point
+        else:
+            self.next_move = self.path.pop()
+
 
 class chase3D():
     def __init__(self) -> None:
-        self.state_size = 6
+        self.state_size = 7
         self.action_size = 6
-        self.time_limits = 100
+        self.time_limits = 350
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
-        self.limits = 10
+        self.limits = 50
         
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         #self.map.add_blocker()
-
-
     def reset(self) -> None:
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         x_start = random.randint(0,self.limits - 1)
@@ -173,28 +173,30 @@ class chase3D():
         y_end = random.randint(0,self.limits - 1)
         z_end = random.randint(0,self.limits - 1)
         self.target = target((x_start,y_start,z_start),(x_end,y_end,z_end))
-        self.agent = Agent((x_end,y_end,z_end),self.map)
+        agent_x = random.randint(0,self.limits - 1)
+        agent_y = random.randint(0,self.limits - 1)
+        agent_z = random.randint(0,self.limits - 1)
+        self.agent = Agent((agent_x,agent_y ,agent_z),self.map)
         self.time = 0
-        state = (x_end,y_end,z_end,x_start,y_start,z_start)
+        state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start,False)
         return np.array(state, dtype= np.int32)
-    
     def is_captured(self):
         return self.map.map[self.target.cur_point[0]][self.target.cur_point[1]][self.target.cur_point[2]]== 2
     def step(self,action,test = False):
-        
         move = self.action_space[action] # update the point
         pre_agent_point = self.agent.cur_point
         self.agent.update(move,self.map)
         captured = self.is_captured()
+
         pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point))
         if self.time % 5 == 0:
             self.target.update(self.map)
         time_penalty = -0.7   # calculate the reward
-        approach_reward = -0.3
+        approach_reward = 100
         new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
         reward = (pre_distance - new_distance) * approach_reward
-        reward += time_penalty
-        states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
+        reward += time_penalty * self.time
+        states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2],captured)
         self.time = self.time + 1
         # check if terminated
         terminated = self.time == self.time_limits
@@ -202,16 +204,19 @@ class chase3D():
         if test:
             plt.rcParams["figure.figsize"] = [10.00, 10.0]
             plt.rcParams["figure.autolayout"] = True
-            data = np.array(self.agent.cur_point)
+            data = np.array(self.agent.prev_point)
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
             x,y,z = np.hsplit(data,3)
             ax.scatter3D(x,y,z,color = "black")
+            target_x,target_y,target_z = np.hsplit(np.array(self.target.cur_point),3)
+            ax.scatter3D(target_x,target_y,target_z, color = "blue")
             path = self.target.path
+            print(f"the target point is :{self.target.cur_point},  the agent point is :{self.agent.cur_point}")
             if path is not None:
                 data_path = np.array(path)
                 x_path, y_path, z_path = np.hsplit(data_path,3)
                 ax.plot3D(x_path,y_path,z_path, color = "red")
-            plt.show()
+            #plt.show()
         return np.array(states,dtype=np.int32) ,reward,captured,terminated
         

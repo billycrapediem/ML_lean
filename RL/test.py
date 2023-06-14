@@ -1,25 +1,34 @@
+from D3QN import DQNAgent
+from case3d_env import chase3D
+import torch
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+env = chase3D()
+agent = DQNAgent(env.state_size,env.action_size)
+state_dict = torch.load('net_params.pt')
+agent.target_model.load_state_dict(state_dict)
 
-# Create a 3D plot
-fig = plt.figure()
-ax = fig.add_subplot(5,5,5, projection='3d')
 
-# Define the block dimensions
-x = [0, 1, 1, 0, 0, 1, 1, 0]
-y = [0, 0, 1, 1, 0, 0, 1, 1]
-z = [0, 0, 0, 0, 1, 1, 1, 1]
+### start testing
+rewards = []
+for i in range (100):
+    state = env.reset()
+    done = False
+    cap = False
+    num = 0
+    total = 0
 
-# Plot the block as a solid shape
-ax.bar3d(x, y, z, 1, 1, 1, color='blue')
+    while not done and not cap:
+        action = agent.act(state,True)
+        next_state, reward, caputred,done = env.step(action,True)
+        state = next_state
+        if cap:
+            reward = 2000
+        total += reward
+        num += 1
+    rewards.append[total]
 
-# Set the plot limits and labels
-ax.set_xlim([0, 1])
-ax.set_ylim([0, 1])
-ax.set_zlim([0, 1])
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-
-# Show the 3D plot
+plt.plot(rewards)
+plt.xlabel('episode')
+plt.ylabel('Score')
+plt.title('testing Scores')
 plt.show()
