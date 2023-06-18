@@ -68,7 +68,7 @@ class DQNAgent:
         if not eval and random.random() < self.epsilon :
             return random.randint(0, self.action_size - 1)
         else:
-            state = torch.from_numpy(state).float().unsqueeze(0)
+            state = torch.from_numpy(state).float().unsqueeze(0).to(device=self.device)
             with torch.no_grad():
                 q_values = self.target_model(state)
             return q_values.max(1)[1].item()
@@ -83,7 +83,7 @@ class DQNAgent:
         actions = torch.tensor(actions,device=self.device).unsqueeze(1)
         rewards = torch.tensor(rewards,device=self.device).unsqueeze(1)
         next_states = torch.tensor(np.vstack(next_states),device=self.device).float()
-        dones = torch.tensor(dones).unsqueeze(1)
+        dones = torch.tensor(dones,device=self.device).unsqueeze(1)
 
         model_action = self.model(next_states).max(1)[1]
         model_action = model_action.view(-1,actions.shape[1])
@@ -132,11 +132,7 @@ def eval(env: chase3D, agent:DQNAgent,episode):
         model_reward += reward
         time += 1
         
-    #if episode >= 1900:
-       # plt.plot(rewards)
-       # plt.xlabel('Time')
-       # plt.ylabel('reward')
-       # plt.show()
+
     if model_reward > agent.max_score or (caputred and time < agent.time):
         print(f'eval:   total reward:{model_reward}')
         agent.ans_model.load_state_dict(agent.target_model.state_dict())
@@ -157,7 +153,7 @@ if __name__ == "__main__":
     eval_frequency = 20
     
     # Training parameters
-    num_episodes = 1000
+    num_episodes = 2000
     scores = []  # List to store the scores
     for episode in range (num_episodes):
         state = env.reset()
@@ -190,7 +186,6 @@ if __name__ == "__main__":
     plt.title('Training Scores')
     plt.show()
     
-    torch.save(agent.ans_model.state_dict,"net_params.pt")
 
 ### start testing
     rewards = []
