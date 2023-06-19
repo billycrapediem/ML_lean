@@ -6,8 +6,10 @@ from torch.distributions import Categorical
 import numpy as np
 import torch.nn as nn
 from collections import deque
+import torch.multiprocessing as mp
 import gym
 import matplotlib.pyplot as plt
+import random
 class ActorCritic(nn.Module):
 
     def __init__(self, input_dim, output_dim, hidden_dim):
@@ -31,37 +33,58 @@ class ActorCritic(nn.Module):
         dist  = Categorical(probs)
         return dist, value
     
-class A3C:
-  def __init__(self, state_size:int, action_size:int) -> None:
-      self.state_size = state_size
-      self.action_size = action_size
-      #hyper-parameters
-      self.batch_size = 512
-      self.gamma = 0.1 ** (1/10) 
-      self.device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-      #model
-      self.model = ActorCritic(state_size,action_size,128).to(self.device)
-      self.optimizer = optim.Adam(self.model.parameters(),lr = 1e-3)
-      #replay buffer
-      #self.buffer_size = 10000
-      #self.buffer = deque(maxlen=self.buffer_size)
-  '''
+
+
+class ReplayBuffer:
+    def __init__(self,buffer_size) -> None:
+        self.memory = deque(maxlen=buffer_size)
+        self.max_len = buffer_size
+    def sample_batch(self,size):
+        if len(self.memory) < size:
+           return None
+        batch = random.sample(self.memory,size)
+        return zip(*batch)
+    def remember(self,probs,advantages,entropy):
+        if len(self.memory) >= self.max_len:
+            self.memory.popleft()
+        self.memory.append(probs,advantages,entropy)
+
+class learner:
+    def __init__(self, state_size:int, action_size:int) -> None:
+        self.state_size = state_size
+        self.action_size = action_size
+        #hyper-parameters
+        self.batch_size = 128
+        self.gamma = 0.1 ** (1/10) 
+        self.device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #model
+        self.model = ActorCritic(state_size,action_size,128).to(self.device)
+        self.optimizer = optim.Adam(self.model.parameters(),lr = 1e-3)
+        #replay buffer
+        #self.buffer_size = 10000
+        #self.buffer = deque(maxlen=self.buffer_size)
+
+    def update(self,replay_buffer:ReplayBuffer):  
+        probs,advantages,entropy = replay_buffer.sample_batch(self.batch_size)      
+        actor_loss = -(probs * advantages.detach()).mean()
+        critic_loss = advantages.pow(2).mean()
+        loss = actor_loss + 0.5 * critic_loss - 0.001 * entropy
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def compute_advantage(self,next_value,value,reward,dones):
+        R = next_value
+        Q_target = []
+        for step in reversed(range(len(reward))):
+           R = reward[step] + self.gamma * R * dones[step]
+           Q_target.insert(0,R)
+        advantages = torch.cat(Q_target) - value
+        return advantages
 
 
 
-  def remember(self,state,next_state,action,reward,done):
-      if len(self.buffer) >= self.buffer_size:
-          self.buffer.popleft()
-      self.buffer.append(state,next_state,action,reward,done)
-  '''
-  def compute_advantage(self,next_value,value,reward,dones):
-     R = next_value
-     Q_target = []
-     for step in reversed(range(len(reward))):
-        R = reward[step] + self.gamma * R * dones[step]
-        Q_target.insert(0,R)
-     advantages = torch.cat(Q_target) - value
-     return advantages
+
 def eval(env,agent,vis=False):
     state = env.reset()
     if vis: env.render()
@@ -72,18 +95,13 @@ def eval(env,agent,vis=False):
         dist, _ = agent.model(state)
         next_state, reward, done, _ = env.step(dist.sample().cpu().numpy()[0])
         state = next_state
-        if vis: env.render()
         total_reward += reward
     return total_reward
 
-def train():
-  update_freq = 7
-  env = gym.make('CartPole-v0')
-  n_states = env.observation_space.shape[0]
-  n_actions = env.action_space.n
-  agents = A3C(n_states,n_actions,)
-  n_episode = 20000
+def train(agents:learner):
+  n_episode = 1000
   # start training
+  env = gym.make('CartPole-v0')
   test_rewards = []
   test_ma_rewards = []
   for episode in range (n_episode):
@@ -130,13 +148,25 @@ def train():
      agents.optimizer.zero_grad()
      loss.backward()
      agents.optimizer.step()
-  print('finish training')
-  return test_rewards, test_ma_rewards
 
-test_rewards, test_ma_rewards = train()
-plt.plot(test_rewards)
-plt.plot(test_ma_rewards)
-plt.show()
+if __name__ == '__main__':
+    env = gym.make('CartPole-v0')
+    n_states = env.observation_space.shape[0]
+    n_actions = env.action_space.n
+    agents = learner(n_states,n_actions)
+    torch.manual_seed(1)
+    mp.set_start_method('spawn', force=True)
+    agents.model.share_memory()
+    processes = []
+    for rank in range(8):
+        p = mp.Process(target=train, args = (agents,))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
+    print(f"test_reward:{eval(env,agents)}")
+
+
 
 
 
