@@ -63,7 +63,7 @@ class DQNAgent:
         if random.random() < self.epsilon:
             return random.randint(0, self.action_size - 1)
         else:
-            state = torch.from_numpy(state).float().unsqueeze(0)
+            state = torch.from_numpy(state).float().unsqueeze(0).to(device=self.device)
             with torch.no_grad():
                 q_values = self.target_model(state)
             return q_values.max(1)[1].item()
@@ -78,7 +78,7 @@ class DQNAgent:
         actions = torch.tensor(actions,device=self.device).unsqueeze(1)
         rewards = torch.tensor(rewards,device=self.device).unsqueeze(1)
         next_states = torch.tensor(np.vstack(next_states),device=self.device).float()
-        dones = torch.tensor(dones).unsqueeze(1)
+        dones = torch.tensor(dones,device=self.device).unsqueeze(1)
 
         model_action = self.model(next_states).max(1)[1]
         model_action = model_action.view(-1,actions.shape[1])
@@ -102,7 +102,6 @@ class DQNAgent:
 env = gym.make('CartPole-v0')
 state_size = env.observation_space.shape[0]
 action_size = env.action_space.n
-print(state_size)
 # Create the DQN agent
 agent = DQNAgent(state_size, action_size)
 

@@ -58,8 +58,6 @@ class AStar:
         ans = self.heuristics(cur_point) + self.g_value[cur_point]
         return ans
     
-
-    
     def get_successor(self, cur_point):
         successors = []
         for i in range (-1,2):
@@ -172,7 +170,7 @@ class chase3D():
     def __init__(self) -> None:
         self.state_size = 7
         self.action_size = 6
-        self.time_limits = 350
+        self.time_limits = 200
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
 
