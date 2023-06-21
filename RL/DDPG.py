@@ -24,11 +24,11 @@ class actor_net(nn.Module):
         x = F.relu(x)
         x = self.linear2(x)
         x = torch.tanh(x)
-        return x * self.max_action
+        return x
 
-# critic net
+# critic net double q net work
 class critic_net(nn.Module):
-    def __init__(self, input_dim:int, hidden_dim = 128,init_v = 1e-5) -> None:
+    def __init__(self, input_dim:int, hidden_dim = 128) -> None:
         super(critic_net,self).__init__()
         self.linear1 = nn.Linear(input_dim,hidden_dim)
         self.linear2 = nn.Linear(hidden_dim,1)
@@ -57,9 +57,7 @@ class replay_buffer:
         self.memory.append((state,action,next_state,reward,done))
 
 class DDPG_net:
-    def __init__(self,input_dim:int, output_dim:int,max_action) -> None:
-
-        
+    def __init__(self,input_dim:int, output_dim:int,max_action,init_v = 1e-5) -> None:
         # hyper-parameter
         self.gamma = 0.01 ** (1/10)
         self.critic_lr = 0.001
@@ -101,10 +99,10 @@ class DDPG_net:
         actor_loss = -actor_loss.mean()
 
         # the critic loss
-        expected_value = self.critic(states,actions)
+        target_value = self.critic(states,actions)
         next_action = self.actor_target(next_state)
-        target_value = rewards + self.gamma* next_action * (~ dones)
-        critic_loss = nn.MSELoss()(expected_value.detach(),target_value)
+        expected_value = rewards + self.gamma* next_action * (~ dones)
+        critic_loss = nn.MSELoss()(target_value,expected_value)
 
         #calculate gradient
         self.actor_optimizer.zero_grad()
@@ -125,7 +123,7 @@ def train():
     max_action = float(env.action_space.high[0])
     agents = DDPG_net(n_state,n_action,max_action)
     max_step = 100000
-    n_episode = 400
+    n_episode = 300
     ep_reward = []
     for episode in range (n_episode):
         state = env.reset()
@@ -142,13 +140,13 @@ def train():
             agents.update()
             step += 1
         ep_reward.append(total_reward)
-        if episode % 10 == 0:
+        if episode % 20 == 0:
             print(f'episode: {episode},  reward:{total_reward}')
             agents.update_model()
     plt.plot(ep_reward)
     plt.show()
     eval(agents)
-# evaluation the model
+
 def eval(agents: DDPG_net):
     env = gym.make("Pendulum-v1")
     max_step =  10000
