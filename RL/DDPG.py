@@ -28,7 +28,7 @@ class actor_net(nn.Module):
 
 # critic net double q net work
 class critic_net(nn.Module):
-    def __init__(self, input_dim:int, hidden_dim = 128) -> None:
+    def __init__(self, input_dim:int, hidden_dim = 128,init_v = 1e-5) -> None:
         super(critic_net,self).__init__()
         self.linear1 = nn.Linear(input_dim,hidden_dim)
         self.linear2 = nn.Linear(hidden_dim,1)
