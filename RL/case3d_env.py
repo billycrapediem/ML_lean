@@ -168,7 +168,7 @@ class target:
 
 class chase3D():
     def __init__(self) -> None:
-        self.state_size = 7
+        self.state_size = 6
         self.action_size = 6
         self.time_limits = 200
         self.time = 0
@@ -192,7 +192,7 @@ class chase3D():
         agent_z = random.randint(0,self.limits - 1)
         self.agent = Agent((agent_x,agent_y ,agent_z),self.map)
         self.time = 0
-        state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start,False)
+        state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start)
         return np.array(state, dtype= np.int32)
     def is_captured(self):
         return self.map.map[self.target.cur_point[0]][self.target.cur_point[1]][self.target.cur_point[2]]== 2
@@ -210,10 +210,9 @@ class chase3D():
         new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
         reward = (pre_distance - new_distance) * approach_reward
         reward += time_penalty * self.time
-        states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2],captured)
+        states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
         self.time = self.time + 1
         # check if terminated
-        terminated = self.time == self.time_limits
         #print(self.agent.prev_point)
         if test:
             plt.rcParams["figure.figsize"] = [10.00, 10.0]
@@ -232,5 +231,5 @@ class chase3D():
                 x_path, y_path, z_path = np.hsplit(data_path,3)
                 ax.plot3D(x_path,y_path,z_path, color = "red")
             #plt.show()
-        return np.array(states,dtype=np.int32) ,reward,captured,terminated
+        return np.array(states,dtype=np.int32) ,reward,captured
         

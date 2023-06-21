@@ -80,6 +80,7 @@ class DQNAgent:
         states, actions, rewards, next_states, dones = zip(*batch)
         # init the factors 
         states = torch.tensor(np.vstack(states),device=self.device).float()
+        print(states.shape)
         actions = torch.tensor(actions,device=self.device).unsqueeze(1)
         rewards = torch.tensor(rewards,device=self.device).unsqueeze(1)
         next_states = torch.tensor(np.vstack(next_states),device=self.device).float()
@@ -120,10 +121,10 @@ def eval(env: chase3D, agent:DQNAgent,episode):
     model_reward = 0
     rewards = []
     time = 0
-    while not done and not caputred:
+    max_time = 200
+    while  not caputred and time < max_time:
         action = agent.act(state, True)
-        next_state, reward, caputred, done = env.step(action)
-        reward = reward  if not caputred else 10
+        next_state, reward, caputred = env.step(action)
         state = next_state
         rewards.append(reward)
         if caputred:
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     state_size = env.state_size
     action_size = env.action_size
     agent = DQNAgent(state_size, action_size)
-    update_frequency = 10
+    update_frequency = 5
     eval_frequency = 20
     
     # Training parameters
@@ -157,21 +158,23 @@ if __name__ == "__main__":
     scores = []  # List to store the scores
     for episode in range (num_episodes):
         state = env.reset()
-        done = False
         caputred = False
         total_reward = 0
-        while  not done and not  caputred:
+        step = 0
+        max_step = 200
+        while  not caputred and step < max_step:
             # visualize the interaction
             #env.render()
             action = agent.act(state)
-            next_state, reward, caputred, done = env.step(action)
+            next_state, reward, caputred = env.step(action)
             # Modify the reward to encourage longer pole balancing
             reward = float(reward)
             if caputred:
                 reward = 2000
-            agent.remember(state, action, reward, next_state, done)
+            agent.remember(state, action, reward, next_state, caputred)
             state = next_state
             total_reward += reward
+            step += 1
                 
         agent.train()
         if episode % update_frequency == 0:
@@ -195,10 +198,9 @@ if __name__ == "__main__":
         cap = False
         num = 0
         total = 0
-
-        while not done and not cap:
+        while not cap:
             action = agent.act(state,True)
-            next_state, reward, cap,done = env.step(action,False)
+            next_state, reward, cap = env.step(action,False)
             state = next_state
             if cap:
                 reward = 2000

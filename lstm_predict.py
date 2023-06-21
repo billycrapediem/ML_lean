@@ -94,7 +94,9 @@ def learn():
         batch_x.append(var_x[j:])
         batch_y.append(var_y[j:])
     
+    print(batch_x)
     batch_x = pad_sequence(batch_x)
+    print(batch_x.shape)
     batch_y = pad_sequence(batch_y)
 
     with torch.no_grad():
@@ -103,6 +105,7 @@ def learn():
 
 
     for epi in range(1000):
+        
         pred_y = net(batch_x)
         loss = (pred_y - batch_y) ** 2 * weights
         loss = loss.mean()
