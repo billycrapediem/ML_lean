@@ -5,18 +5,18 @@ import torch.optim as optim
 import torch.utils.data as Data
 import matplotlib.pyplot as plt
 
-class lSTM_net(nn.Module):
-    def __init__(self,input_dim:int, output_dim:int, hidden_layers = 2,mid_dim = 128) -> None:
-        super(lSTM_net,self).__init__()
-        self.lstm = nn.LSTM(input_dim,mid_dim,hidden_layers)
+class neuro_net(nn.Module):
+    def __init__(self,input_dim:int, output_dim:int, hidden_layers = 2,mid_dim = 256) -> None:
+        super(neuro_net,self).__init__()
         self.linear = nn.Sequential(
+            nn.Linear(input_dim,mid_dim),
+            nn.LeakyReLU(),
             nn.Linear(mid_dim,mid_dim),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(mid_dim,output_dim)
         )
     def forward(self,input):
-        x = self.lstm(input)[0]
-        x = self.linear(x)
+        x = self.linear(input)
         return x
 
 def data_preprocess():
@@ -38,9 +38,9 @@ def data_preprocess():
 
 def train():
     ## hyper-parameter
-    learning_rate = 1e-3
-    batch_size = 128
-    n_episode = 50
+    learning_rate = 1e-6
+    batch_size = 5096
+    n_episode = 40000
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     input_dim = 16
     output_dim = 6
@@ -53,24 +53,28 @@ def train():
     test_data = data[:train_size,:]
     test_lable = label_value[:train_size,:]
     
-    test_data = torch.tensor(test_data,dtype=torch.float32,device=device)
-    test_lable = torch.tensor(test_lable,dtype=torch.float32,device=device)
-    train_data = torch.tensor(train_data,dtype=torch.float32,device=device)
-    train_lable = torch.tensor(train_lable,dtype=torch.float32,device=device)
+    test_data = torch.tensor(test_data,dtype=torch.float32)
+    test_lable = torch.tensor(test_lable,dtype=torch.float32)
+    train_data = torch.tensor(train_data,dtype=torch.float32)
+    train_lable = torch.tensor(train_lable,dtype=torch.float32)
     train_tensor_set = Data.TensorDataset(train_data,train_lable)
     train_loader = Data.DataLoader(dataset=train_tensor_set,batch_size=batch_size,shuffle=True,num_workers=4)
 
     ## build network
-    net_work = lSTM_net(input_dim,output_dim)
+    net_work = neuro_net(input_dim,output_dim)
+    #net_work.load_state_dict(torch.load('neuro_net.pt'))
     optimizer = optim.Adam(net_work.parameters(),lr=learning_rate)
     loss_func = nn.MSELoss()
     loss_value = []
     #start training
     
     
+    
     for episode in range(n_episode):
         loss = 0
         for batch_x, batch_y in train_loader:
+            batch_x.to(device)
+            batch_y.to(device)
             predict_y = net_work(batch_x)
             loss = loss_func(predict_y,batch_y)
             optimizer.zero_grad()
@@ -79,17 +83,24 @@ def train():
             loss_value.append(loss.item())
         if episode % 5 == 0:
             print(f'episode : {episode}, loss:{loss}')
+        if episode % 500 == 0:
+            torch.save(net_work.state_dict(),'neuro_net.pt')
     plt.plot(loss_value)
     plt.show()
     
+    torch.save(net_work.state_dict(),'neuro_net.pt')
+    
     # eval the model
+    loss = 0
     eval_loss = []
     for (data_x, data_y) in zip(test_data,test_lable):
-        data_x = data_x.unsqueeze(0)
-        print(data_x.shape)
+        data_x = data_x
+        data_x.to(device)
+        data_y.to(device)
         predict_y = net_work(data_x)
         loss = loss_func(predict_y,data_y)
         eval_loss.append(loss.item())
+        print(loss.item())
     plt.plot(eval_loss)
     plt.show()
 
