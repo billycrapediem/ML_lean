@@ -38,9 +38,9 @@ def data_preprocess():
 
 def train():
     ## hyper-parameter
-    learning_rate = 1e-6
+    learning_rate = 1e-5
     batch_size = 5096
-    n_episode = 40000
+    n_episode = 5000
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     input_dim = 16
     output_dim = 6
@@ -62,11 +62,13 @@ def train():
 
     ## build network
     net_work = neuro_net(input_dim,output_dim)
-    #net_work.load_state_dict(torch.load('neuro_net.pt'))
+    net_work.load_state_dict(torch.load('neuro_net.pt'))
     optimizer = optim.Adam(net_work.parameters(),lr=learning_rate)
     loss_func = nn.MSELoss()
     loss_value = []
     #start training
+    
+    
     
     
     
@@ -83,8 +85,7 @@ def train():
             loss_value.append(loss.item())
         if episode % 5 == 0:
             print(f'episode : {episode}, loss:{loss}')
-        if episode % 500 == 0:
-            torch.save(net_work.state_dict(),'neuro_net.pt')
+
     plt.plot(loss_value)
     plt.show()
     
@@ -103,6 +104,7 @@ def train():
         print(loss.item())
     plt.plot(eval_loss)
     plt.show()
+    print(np.array(eval_loss).mean())
 
 
 
