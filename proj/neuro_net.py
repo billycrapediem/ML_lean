@@ -13,7 +13,8 @@ class neuro_net(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(mid_dim,mid_dim),
             nn.LeakyReLU(),
-            nn.Linear(mid_dim,output_dim)
+            nn.Linear(mid_dim,output_dim),
+            nn.Tanh()
         )
     def forward(self,input):
         x = self.linear(input)
@@ -27,12 +28,12 @@ def data_preprocess():
     min_value = -np.pi
     angle_range = 2 * np.pi
     for i in range (3,6):
-        data_state[i,:] = (data_state[i,:] - min_value) / angle_range
+        data_state[i,:] = -1 + (data_state[i,:] - min_value) *(2 /angle_range)
     min_force = -10
     for i in range (0,3):
-        data_Ft[i,:] = (data_Ft[i,:] - min_force) / (60)
+        data_Ft[i,:] = -1 + (data_Ft[i,:] - min_force) / (30)
     for i in range (3,6):
-        data_Ft[i,:] = (data_Ft[i,:] - (-2)) / (4)
+        data_Ft[i,:] = -1 + (data_Ft[i,:] - (-4)) / (8)
     data = np.concatenate((data_state,data_vel),axis=0)
     data = np.transpose(data)
     data_Ft = np.transpose(data_Ft)
@@ -43,7 +44,7 @@ def data_preprocess():
 
 def train():
     ## hyper-parameter
-    learning_rate = 1e-4
+    learning_rate = 1e-5
     batch_size = 2048
     n_episode = 2000
     
@@ -68,19 +69,15 @@ def train():
 
     ## build network
     net_work = neuro_net(input_dim,output_dim)
-    net_work.load_state_dict(torch.load('neuro_net.pt'))
+    net_work.load_state_dict(torch.load('new_neuro_net.pt'))
     #net_work = torch.load('model.pt')
     optimizer = optim.Adam(net_work.parameters(),lr=learning_rate)
     loss_func = nn.MSELoss()
     loss_value = []
     #start training
     
-    
-    
-    
-    
-    
-    
+
+    '''
     for episode in range(n_episode):
         loss = 0
         for batch_x, batch_y in train_loader:
@@ -99,7 +96,7 @@ def train():
     plt.show()
     
     torch.save(net_work.state_dict(),'new_neuro_net.pt')
-    
+    '''
     # eval the model
     with torch.no_grad():
         loss = 0
@@ -113,9 +110,12 @@ def train():
             data_x.to(device)
             data_y.to(device)
             predict_y = net_work(data_x)
-            comparative = ((data_y - predict_y) / data_y).numpy()
+            comparative = (( - data_y + predict_y) / data_y).numpy()
             for i in range (6):
+                if comparative[i] > 10 or comparative[i] < -10:
+                    print(f'the data type is :{i}, predict y:{predict_y[i]},  y:{data_y[i]}, the comparative loss is:{comparative[i]}')
                 comparative_loss[i].append(comparative[i])
+                
             loss = loss_func(predict_y,data_y)
             eval_loss.append(loss.item())
         plt.plot(eval_loss,label = "loss")
@@ -130,5 +130,3 @@ def train():
 
 if __name__ == '__main__':
     train()
-
-
