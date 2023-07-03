@@ -57,7 +57,7 @@ class DQNAgent:
         self.model = QNetwork(state_size, action_size).to(device=self.device)  # train model
         self.target_model = QNetwork(state_size, action_size).to(device=self.device) # act model
         self.ans_model =  QNetwork(state_size, action_size).to(device=self.device) # final model
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-2)
     # replay buffer
     def remember(self, state, action, reward, next_state, done):
         if len(self.memory) >= 100000:
@@ -80,7 +80,6 @@ class DQNAgent:
         states, actions, rewards, next_states, dones = zip(*batch)
         # init the factors 
         states = torch.tensor(np.vstack(states),device=self.device).float()
-        print(states.shape)
         actions = torch.tensor(actions,device=self.device).unsqueeze(1)
         rewards = torch.tensor(rewards,device=self.device).unsqueeze(1)
         next_states = torch.tensor(np.vstack(next_states),device=self.device).float()
@@ -187,7 +186,7 @@ if __name__ == "__main__":
     plt.xlabel('Episode')
     plt.ylabel('Score')
     plt.title('Training Scores')
-    plt.show()
+    plt.savefig('D3QN.png')
     
 
 ### start testing
@@ -213,7 +212,7 @@ if __name__ == "__main__":
     plt.xlabel('episode')
     plt.ylabel('Score')
     plt.title('testing Scores')
-    plt.show()
+    plt.savefig('test_D3QN.png')
     
     
     

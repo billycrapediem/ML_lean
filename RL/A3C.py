@@ -56,7 +56,7 @@ class learner:
         #hyper-parameters
         self.batch_size = 128
         self.gamma = 0.1 ** (1/10) 
-        self.device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device  = torch.device("cpu")
         #model
         self.model = ActorCritic(state_size,action_size,128).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(),lr = 1e-3)
