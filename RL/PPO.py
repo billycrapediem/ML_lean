@@ -1,11 +1,14 @@
+from typing import Any
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from collections import deque
-import gym
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+from case3d_env import chase3D
+import gym
+import copy
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,7 +23,7 @@ class actor(nn.Module):
         self.linear1 = nn.Linear(input_dim,mid_dim)
         self.linear2 = nn.Linear(mid_dim,mid_dim)
         self.linear3 = nn.Linear(mid_dim,ouput_dim)
-        self.active = nn.ReLU()
+        self.active = nn.Tanh()
         orthogonal_init(self.linear1)
         orthogonal_init(self.linear2)
         orthogonal_init(self.linear3)
@@ -37,7 +40,7 @@ class critic(nn.Module):
         self.linear1 = nn.Linear(input_dim,mid_dim)
         self.linear2 = nn.Linear(mid_dim,mid_dim)
         self.linear3 = nn.Linear(mid_dim,ouput_dim)
-        self.active = nn.ReLU()
+        self.active = nn.Tanh()
         orthogonal_init(self.linear1)
         orthogonal_init(self.linear2)
         orthogonal_init(self.linear3)
@@ -60,32 +63,31 @@ class replay_buffer:
     def clear(self):
         self.memory.clear()
 
-
 class PPO:
     def __init__(self,
                  action_space:int, 
                  state_space:int,  
                  max_train_steps,
                  gamma = 0.99,
-                 update_freq = 1024,
-                 mini_batch = 256,
-                 epoch_num = 10,
+                 update_freq = 2**12,
+                 mini_batch = 1024,
+                 epoch_num = 6,
                  learning_rate = 1e-4,
-                 eplison_max = 0.2,
+                 eplison_max = 0.1,
                  lamda = 0.96,
-                 entropy_coef = 0.01):
+                 entropy_coef = 0.05):
         self.actor = actor(state_space,action_space).to(device)
         self.critic = critic(state_space,1).to(device)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=learning_rate,eps=1e-5)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),lr=learning_rate,eps=1e-5)
-        self.buffer = replay_buffer(2048)
+        self.buffer = replay_buffer(2**13)
         self.gamma = gamma
         self.batch_size = update_freq
         self.eplison_max = eplison_max
         self.epoch_num = epoch_num
         self.step = 0
         self.entropy_coef = entropy_coef
-        self.lamda = 0.96
+        self.lamda = lamda
         self.lr = learning_rate
         self.max_train_steps = max_train_steps
         self.mini_batch = mini_batch
@@ -129,7 +131,6 @@ class PPO:
             returns = (returns - returns.mean()) / (returns.std() + 1e-8)
         for _ in range(self.epoch_num):
             for index in BatchSampler(SubsetRandomSampler(range(self.batch_size)),self.mini_batch,False):
-                
                 # get action probabilities
                 dist = torch.distributions.Categorical(probs=self.actor(old_states[index]))
                 dist_entropy = dist.entropy().view(-1, 1)
@@ -145,23 +146,55 @@ class PPO:
                 # compute critic loss
                 values = self.critic(old_states[index]) # detach to avoid backprop through the critic
                 critic_loss = F.mse_loss(value_target[index],values)
-                # take gradient step
+                # take gradient step & gradian clip
                 self.actor_optimizer.zero_grad()
-                self.critic_optimizer.zero_grad()
                 actor_loss.backward()
-                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(),0.5)
+                self.actor_optimizer.step()
 
-            self.actor_optimizer.step()
-            self.critic_optimizer.step()
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.critic.parameters(),0.5)
+                self.critic_optimizer.step()
         lr_now = self.lr * (1-self.step/self.max_train_steps)
         for p in self.actor_optimizer.param_groups:
             p['lr'] = lr_now
         for p in self.critic_optimizer.param_groups:
             p['lr'] = lr_now
         self.buffer.clear()    
-
+class DynamicMeanSTD:
+    def __init__(self,shape) -> None:
+        self.count = 0
+        self.mean = np.zeros(shape)
+        self.S = np.zeros(shape)
+        self.std = np.sqrt(self.S)
+    def update(self,x):
+        x = np.array(x)
+        self.count += 1
+        if self.count == 1:
+            self.mean = x
+            self.std = x
+        else:
+            old_mean = self.mean.copy()
+            self.mean = old_mean + (x - old_mean) / self.count
+            self.S = self.S + (x - old_mean) / (x - self.mean)
+            self.std = np.sqrt(self.S / self.count)
+class RewardScaling:
+    def __init__(self,shape,gamma) -> None:
+        self.shape = shape
+        self.gamma = gamma
+        self.running_ms = DynamicMeanSTD(shape)
+        self.reward = np.zeros(self.shape)
+    def __call__(self, x) -> Any:
+        self.reward = self.gamma * self.reward + x
+        self.running_ms.update(self.reward)
+        x = x / (self.running_ms.std + 1e-8)
+        return x
+    def reset(self):
+        self.reward = np.zeros(self.shape)
+    
 def evaluate_policy( env, agent):
-    times = 1
+    times = 5
     evaluate_reward = 0
     for _ in range(times):
         s = env.reset()
@@ -170,7 +203,7 @@ def evaluate_policy( env, agent):
         episode_reward = 0
         while not done:
             a = agent.evaluate(s)  # We use the deterministic policy during the evaluating
-            s_, r, done, _ = env.step(a)
+            s_, r, done= env.step(a)
             episode_reward += r
             s = s_
         evaluate_reward += episode_reward
@@ -178,31 +211,55 @@ def evaluate_policy( env, agent):
     return evaluate_reward / times
 
 def train():
-    env = gym.make('CartPole-v1')
-    train_steps = int(60000)
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
+    env = chase3D()
+    state_size = env.state_size
+    action_size = env.action_size
+    train_steps = int(200 * 1000)
     agent = PPO(action_size,state_size,max_train_steps=train_steps)
+    save_agent =PPO(action_size,state_size,max_train_steps=train_steps)
+    max_reward = -1000000
     episode_reward = []
     step = 0
     episode = 0
+    train_scale = []
+    reward_scaling = RewardScaling(1,0.99)
     while step < train_steps:
         state = env.reset()
         done = False
+        reward_scaling.reset()
         while not done:
             actions,logprob = agent.sample_action(state)
-            next_state, reward, done, _ = env.step(actions)
+            next_state, old_reward, done= env.step(actions)
+            reward = reward_scaling(old_reward)
             agent.buffer.append((state,next_state,actions,reward,logprob,done))
             agent.update()
             state = next_state
             step += 1
         episode += 1
-        if episode % 1 == 0:
+        if episode % 5 == 0:
             eps_reward = evaluate_policy(env,agent)
+            train_scale.append(eps_reward)
             print(f'episode:{episode} step:{step} reward:{eps_reward}')
-            episode_reward.append(eps_reward)
+            '''
+            
+            
+            if eps_reward > 2000 or max_reward <= eps_reward:
+                save_agent.actor.load_state_dict(agent.actor.state_dict())
+                save_agent.critic.load_state_dict(agent.critic.state_dict())
+                max_reward = eps_reward
+                print("update")
+            else:
+                agent.actor.load_state_dict(save_agent.actor.state_dict())
+                agent.critic.load_state_dict(save_agent.critic.state_dict())
+                '''
+    torch.save(agent.actor.state_dict,"PPO_agent_model.pt")
+    torch.save(agent.critic.state_dict,"PPO_critic_model.pt")
+    for _ in range (40):
+        episode_reward.append(evaluate_policy(env,agent))
+    plt.plot(train_scale)
+    plt.show()
     plt.plot(episode_reward)
-    plt.savefig('PPO.png')
+    plt.savefig('chase.png')
 train()
 
 
