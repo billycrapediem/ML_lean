@@ -200,36 +200,21 @@ class chase3D():
         move = self.action_space[action] # update the point
         pre_agent_point = self.agent.cur_point
         self.agent.update(move,self.map)
-        captured = self.is_captured()
-
-        pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point))
-        if self.time % 5 == 0:
+        if self.time % 3 == 0:
             self.target.update(self.map)
-        time_penalty = -0.7   # calculate the reward
-        approach_reward = 100
-        new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
-        reward = (pre_distance - new_distance) * approach_reward
-        reward += time_penalty * self.time
+        done = self.time >= self.time_limits
+        reward = 0
+        if self.is_captured():
+            done = True
+            reward = 2000
+        else:
+            pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
+            time_penalty = -1   # calculate the reward
+            approach_reward = 150
+            new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
+            reward = (pre_distance - new_distance) * approach_reward
+            reward += time_penalty * self.time
         states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
         self.time = self.time + 1
-        # check if terminated
-        #print(self.agent.prev_point)
-        if test:
-            plt.rcParams["figure.figsize"] = [10.00, 10.0]
-            plt.rcParams["figure.autolayout"] = True
-            data = np.array(self.agent.prev_point)
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            x,y,z = np.hsplit(data,3)
-            ax.scatter3D(x,y,z,color = "black")
-            target_x,target_y,target_z = np.hsplit(np.array(self.target.cur_point),3)
-            ax.scatter3D(target_x,target_y,target_z, color = "blue")
-            path = self.target.path
-            print(f"the target point is :{self.target.cur_point},  the agent point is :{self.agent.cur_point}")
-            if path is not None:
-                data_path = np.array(path)
-                x_path, y_path, z_path = np.hsplit(data_path,3)
-                ax.plot3D(x_path,y_path,z_path, color = "red")
-            #plt.show()
-        return np.array(states,dtype=np.int32) ,reward,captured
+        return np.array(states,dtype=np.int32) ,reward, done
         

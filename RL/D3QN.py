@@ -120,15 +120,13 @@ def eval(env: chase3D, agent:DQNAgent,episode):
     model_reward = 0
     rewards = []
     time = 0
-    max_time = 200
-    while  not caputred and time < max_time:
+    while  not caputred:
         action = agent.act(state, True)
         next_state, reward, caputred = env.step(action)
         state = next_state
         rewards.append(reward)
-        if caputred:
+        if reward == 2000:
             print("capturedddddd")
-            reward = 2000
         model_reward += reward
         time += 1
         
@@ -157,23 +155,18 @@ if __name__ == "__main__":
     scores = []  # List to store the scores
     for episode in range (num_episodes):
         state = env.reset()
-        caputred = False
+        done = False
         total_reward = 0
-        step = 0
-        max_step = 200
-        while  not caputred and step < max_step:
+        while  not done :
             # visualize the interaction
             #env.render()
             action = agent.act(state)
-            next_state, reward, caputred = env.step(action)
+            next_state, reward, done = env.step(action)
             # Modify the reward to encourage longer pole balancing
             reward = float(reward)
-            if caputred:
-                reward = 2000
-            agent.remember(state, action, reward, next_state, caputred)
+            agent.remember(state, action, reward, next_state, done)
             state = next_state
             total_reward += reward
-            step += 1
                 
         agent.train()
         if episode % update_frequency == 0:

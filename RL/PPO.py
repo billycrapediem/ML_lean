@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 from collections import deque
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from case3d_env import chase3D
-import gym
-import copy
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -75,7 +73,7 @@ class PPO:
                  learning_rate = 1e-4,
                  eplison_max = 0.1,
                  lamda = 0.96,
-                 entropy_coef = 0.05):
+                 entropy_coef = 0.01):
         self.actor = actor(state_space,action_space).to(device)
         self.critic = critic(state_space,1).to(device)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=learning_rate,eps=1e-5)
