@@ -90,14 +90,14 @@ class PPO:
         self.max_train_steps = max_train_steps
         self.mini_batch = mini_batch
     def sample_action(self, state):
-        state = torch.tensor(state, dtype=torch.float32,device=device).unsqueeze(dim=0)
+        state = torch.tensor(np.array(state), dtype=torch.float32,device=device).unsqueeze(dim=0)
         probs = self.actor(state)
         dist = torch.distributions.Categorical(probs)
         action = dist.sample()
         self.step += 1
         return action.squeeze().cpu().numpy(), dist.log_prob(action).detach()
     def evaluate(self, s):  # When evaluating the policy, we select the action with the highest probability
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float,device=device), 0)
+        s = torch.unsqueeze(torch.tensor(np.array(s), dtype=torch.float,device=device), 0)
         a_prob = self.actor(s).squeeze().detach().cpu().numpy()
         action = []
         for probs in a_prob:
@@ -197,6 +197,7 @@ class RewardScaling:
 def evaluate_policy( env, agent):
     times = 5
     evaluate_reward = 0
+    cnt = 0
     for _ in range(times):
         s = env.reset()
 
@@ -209,11 +210,11 @@ def evaluate_policy( env, agent):
             episode_reward += r[0]
             for i in range(5):
                 if r[i] == 20000:
-                    print("captured")
+                    cnt += 1
             s = s_
         evaluate_reward += episode_reward
 
-    return evaluate_reward / times
+    return evaluate_reward / times, cnt / times
 
 def train():
     env = chase3D()
@@ -242,9 +243,9 @@ def train():
             step += 1
         episode += 1
         if episode % 5 == 0:
-            eps_reward = evaluate_policy(env,agent)
+            eps_reward,captured = evaluate_policy(env,agent)
             train_scale.append(eps_reward)
-            print(f'episode:{episode} step:{step} reward:{eps_reward}')
+            print(f'episode:{episode} step:{step} reward:{eps_reward} captured:{captured}')
             '''
 
             if eps_reward > 2000 or max_reward <= eps_reward:
@@ -258,8 +259,11 @@ def train():
                 '''
     torch.save(agent.actor.state_dict(),"PPO_agent_model.pt")
     torch.save(agent.critic.state_dict(),"PPO_critic_model.pt")
+    #captured = []
     for _ in range (40):
-        episode_reward.append(evaluate_policy(env,agent))
+        r,_ = evaluate_policy(env,agent)
+        episode_reward.append(r)
+        #captured.append(c)
     plt.plot(train_scale)
     plt.plot(episode_reward)
     plt.savefig('chase.png')

@@ -208,13 +208,14 @@ class chase3D():
         if self.time % 3 == 0:
             self.target.update(self.map)
         cnt = 0
+        terminated = False
         for agent in self.agent:
             move = self.action_space[action[cnt]] # update the point
             pre_agent_point = agent.cur_point
             agent.update(move,self.map)
             done = self.time >= self.time_limits
             reward = 0
-            if self.is_captured() or reward == 20000: 
+            if self.is_captured() and not done : 
                 done = True
                 reward = 20000
             else:
