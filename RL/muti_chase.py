@@ -170,6 +170,8 @@ class chase3D():
     def __init__(self) -> None:
         self.state_size = 6
         self.action_size = 6
+        self.agent_num = 5
+        self.agent = []
         self.time_limits = 100
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
@@ -187,37 +189,49 @@ class chase3D():
         y_end = random.randint(0,self.limits - 1)
         z_end = random.randint(0,self.limits - 1)
         self.target = target((x_start,y_start,z_start),(x_end,y_end,z_end))
-        agent_x = random.randint(0,self.limits - 1)
-        agent_y = random.randint(0,self.limits - 1)
-        agent_z = random.randint(0,self.limits - 1)
-        self.agent = Agent((agent_x,agent_y ,agent_z),self.map)
-        self.time = 0
-        state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start)
-        return np.array(state, dtype= np.int32)
+        states = []
+        for _ in range (self.agent_num):
+            agent_x = random.randint(0,self.limits - 1)
+            agent_y = random.randint(0,self.limits - 1)
+            agent_z = random.randint(0,self.limits - 1)
+            self.agent.append(Agent((agent_x,agent_y ,agent_z),self.map))
+            state = [agent_x,agent_y ,agent_z,x_start,y_start,z_start]
+            states.append(state)
+        return np.array(states, dtype= np.int32)
     def is_captured(self):
         return self.map.map[self.target.cur_point[0]][self.target.cur_point[1]][self.target.cur_point[2]]== 2
     def step(self,action):
-        move = self.action_space[action] # update the point
-        pre_agent_point = self.agent.cur_point
-        self.agent.update(move,self.map)
+        states = []
+        rewards = []
+        dones = []
         if self.time % 3 == 0:
             self.target.update(self.map)
-        done = self.time >= self.time_limits
-        reward = 0
-        if self.is_captured():
-            done = True
-            reward = 20000
-        else:
-            pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
-            time_penalty = -0.5   # calculate the reward
-            #approach_reward = 150
-            new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
-            if pre_distance - new_distance > 0:
-                reward = 100
+        cnt = 0
+        for agent in self.agent:
+            move = self.action_space[action[cnt]] # update the point
+            pre_agent_point = agent.cur_point
+            agent.update(move,self.map)
+            done = self.time >= self.time_limits
+            reward = 0
+            if self.is_captured() or reward == 20000: 
+                done = True
+                reward = 20000
             else:
-                reward = -100
-            reward += time_penalty * self.time
-        states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
+                pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
+                time_penalty = -0.5   # calculate the reward
+                #approach_reward = 150
+                new_distance = np.linalg.norm(np.array(agent.cur_point) - np.array(self.target.cur_point))
+                if pre_distance - new_distance > 0:
+                    reward = 100
+                else:
+                    reward = -100
+                reward += time_penalty * self.time
+            state = (agent.cur_point[0],agent.cur_point[1],agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
+            states.append(state)
+            rewards.append(rewards)
+            dones.append(done)
+            cnt += 1
         self.time = self.time + 1
-        return np.array(states,dtype=np.int32) ,reward, done
+        print("here")
+        return np.array(states,dtype=np.int32) ,rewards, dones
         

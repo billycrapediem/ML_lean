@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from collections import deque
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
-from case3d_env import chase3D
+from muti_chase import chase3D
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -95,11 +95,12 @@ class PPO:
         dist = torch.distributions.Categorical(probs)
         action = dist.sample()
         self.step += 1
-        return action.item(), dist.log_prob(action).detach()
+        return action.squeeze().cpu().numpy(), dist.log_prob(action).detach()
     def evaluate(self, s):  # When evaluating the policy, we select the action with the highest probability
         s = torch.unsqueeze(torch.tensor(s, dtype=torch.float,device=device), 0)
         a_prob = self.actor(s).detach().cpu().numpy().flatten()
         a = np.argmax(a_prob)
+        print(a)
         return a
     def update(self):
         if not (self.step % self.batch_size == 0):
@@ -202,7 +203,10 @@ def evaluate_policy( env, agent):
         while not done:
             a = agent.evaluate(s)  # We use the deterministic policy during the evaluating
             s_, r, done= env.step(a)
-            episode_reward += r
+            episode_reward += r[0]
+            for i in range(5):
+                r[i] == 20000
+                print("captured")
             s = s_
         evaluate_reward += episode_reward
 
@@ -212,8 +216,10 @@ def train():
     env = chase3D()
     state_size = env.state_size
     action_size = env.action_size
-    train_steps = int(200 * 1000)
+    train_steps = int(100 * 1)
     agent = PPO(action_size,state_size,max_train_steps=train_steps)
+    agent.actor.load_state_dict(torch.load('PPO_agent_model.pt'))
+    agent.critic.load_state_dict(torch.load('PPO_critic_model.pt'))
     save_agent =PPO(action_size,state_size,max_train_steps=train_steps)
     max_reward = -1000000
     episode_reward = []
@@ -249,8 +255,8 @@ def train():
                 agent.actor.load_state_dict(save_agent.actor.state_dict())
                 agent.critic.load_state_dict(save_agent.critic.state_dict())
                 '''
-    torch.save(agent.actor.state_dict,"PPO_agent_model.pt")
-    torch.save(agent.critic.state_dict,"PPO_critic_model.pt")
+    torch.save(agent.actor.state_dict(),"PPO_agent_model.pt")
+    torch.save(agent.critic.state_dict(),"PPO_critic_model.pt")
     for _ in range (40):
         episode_reward.append(evaluate_policy(env,agent))
     plt.plot(train_scale)
