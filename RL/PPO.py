@@ -239,8 +239,7 @@ def train():
             train_scale.append(eps_reward)
             print(f'episode:{episode} step:{step} reward:{eps_reward}')
             '''
-            
-            
+
             if eps_reward > 2000 or max_reward <= eps_reward:
                 save_agent.actor.load_state_dict(agent.actor.state_dict())
                 save_agent.critic.load_state_dict(agent.critic.state_dict())
@@ -255,7 +254,6 @@ def train():
     for _ in range (40):
         episode_reward.append(evaluate_policy(env,agent))
     plt.plot(train_scale)
-    plt.show()
     plt.plot(episode_reward)
     plt.savefig('chase.png')
 train()

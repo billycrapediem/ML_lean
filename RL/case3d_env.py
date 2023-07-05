@@ -187,9 +187,9 @@ class chase3D():
         y_end = random.randint(0,self.limits - 1)
         z_end = random.randint(0,self.limits - 1)
         self.target = target((x_start,y_start,z_start),(x_end,y_end,z_end))
-        agent_x = random.randint(0,self.limits - 1)
-        agent_y = random.randint(0,self.limits - 1)
-        agent_z = random.randint(0,self.limits - 1)
+        agent_x = x_start - 6#random.randint(0,self.limits - 1)
+        agent_y = y_start - 6#random.randint(0,self.limits - 1)
+        agent_z = z_start - 6#random.randint(0,self.limits - 1)
         self.agent = Agent((agent_x,agent_y ,agent_z),self.map)
         self.time = 0
         state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start)
