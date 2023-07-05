@@ -171,8 +171,7 @@ class chase3D():
         self.state_size = 6
         self.action_size = 6
         self.agent_num = 5
-        self.agent = []
-        self.time_limits = 100
+        self.time_limits = 150
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
 
@@ -190,6 +189,7 @@ class chase3D():
         z_end = random.randint(0,self.limits - 1)
         self.target = target((x_start,y_start,z_start),(x_end,y_end,z_end))
         states = []
+        self.agent = []
         for _ in range (self.agent_num):
             agent_x = random.randint(0,self.limits - 1)
             agent_y = random.randint(0,self.limits - 1)
@@ -197,6 +197,7 @@ class chase3D():
             self.agent.append(Agent((agent_x,agent_y ,agent_z),self.map))
             state = [agent_x,agent_y ,agent_z,x_start,y_start,z_start]
             states.append(state)
+        self.time = 0
         return np.array(states, dtype= np.int32)
     def is_captured(self):
         return self.map.map[self.target.cur_point[0]][self.target.cur_point[1]][self.target.cur_point[2]]== 2
@@ -226,12 +227,11 @@ class chase3D():
                 else:
                     reward = -100
                 reward += time_penalty * self.time
-            state = (agent.cur_point[0],agent.cur_point[1],agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
+            state = np.array((agent.cur_point[0],agent.cur_point[1],agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2]),dtype=np.int32)
             states.append(state)
-            rewards.append(rewards)
+            rewards.append(reward)
             dones.append(done)
             cnt += 1
         self.time = self.time + 1
-        print("here")
-        return np.array(states,dtype=np.int32) ,rewards, dones
+        return states ,rewards, dones
         

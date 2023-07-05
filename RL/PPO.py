@@ -98,10 +98,12 @@ class PPO:
         return action.squeeze().cpu().numpy(), dist.log_prob(action).detach()
     def evaluate(self, s):  # When evaluating the policy, we select the action with the highest probability
         s = torch.unsqueeze(torch.tensor(s, dtype=torch.float,device=device), 0)
-        a_prob = self.actor(s).detach().cpu().numpy().flatten()
-        a = np.argmax(a_prob)
-        print(a)
-        return a
+        a_prob = self.actor(s).squeeze().detach().cpu().numpy()
+        action = []
+        for probs in a_prob:
+            a = np.argmax(probs)
+            action.append(a)
+        return action
     def update(self):
         if not (self.step % self.batch_size == 0):
             return
@@ -202,11 +204,12 @@ def evaluate_policy( env, agent):
         episode_reward = 0
         while not done:
             a = agent.evaluate(s)  # We use the deterministic policy during the evaluating
-            s_, r, done= env.step(a)
+            s_, r, dones= env.step(a)
+            done = dones[0]
             episode_reward += r[0]
             for i in range(5):
-                r[i] == 20000
-                print("captured")
+                if r[i] == 20000:
+                    print("captured")
             s = s_
         evaluate_reward += episode_reward
 
@@ -216,12 +219,8 @@ def train():
     env = chase3D()
     state_size = env.state_size
     action_size = env.action_size
-    train_steps = int(100 * 1)
+    train_steps = int(100 * 2000)
     agent = PPO(action_size,state_size,max_train_steps=train_steps)
-    agent.actor.load_state_dict(torch.load('PPO_agent_model.pt'))
-    agent.critic.load_state_dict(torch.load('PPO_critic_model.pt'))
-    save_agent =PPO(action_size,state_size,max_train_steps=train_steps)
-    max_reward = -1000000
     episode_reward = []
     step = 0
     episode = 0
@@ -233,9 +232,11 @@ def train():
         reward_scaling.reset()
         while not done:
             actions,logprob = agent.sample_action(state)
-            next_state, old_reward, done= env.step(actions)
-            reward = reward_scaling(old_reward)
-            agent.buffer.append((state,next_state,actions,reward,logprob,done))
+            next_state, reward, dones= env.step(actions)
+            done = dones[0]
+            for i in range (5):
+                reward[i] = reward_scaling(reward[i])
+                agent.buffer.append((state[i],next_state[i],actions[i],reward[i],logprob[0][i],dones[i]))
             agent.update()
             state = next_state
             step += 1
