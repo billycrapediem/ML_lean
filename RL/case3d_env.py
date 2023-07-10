@@ -169,11 +169,17 @@ class target:
 class chase3D():
     def __init__(self) -> None:
         self.state_size = 6
-        self.action_size = 6
+        self.action_size = 27
         self.time_limits = 100
         self.time = 0
-        self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
-
+        self.action_space = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
+                      (-1, 0, 0), (-1, 0, 1), (-1, 1, -1), (-1, 1, 0),
+                      (-1, 1, 1), (0, -1, -1), (0, -1, 0), (0, -1, 1),
+                      (0, 0, -1), (0, 0, 1), (0, 1, -1), (0, 1, 0),
+                      (0, 1, 1), (1, -1, -1), (1, -1, 0), (1, -1, 1),
+                      (1, 0, -1), (1, 0, 1), (1, 1, -1), (1, 1, 0),
+                      (1, 1, 1), (0,0,0)
+                    ]
         self.limits = 50
         
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
