@@ -48,16 +48,16 @@ class DQNAgent:
         self.action_size = action_size
         self.device  = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.memory = deque(maxlen=100000)
-        self.batch_size = 512
-        self.gamma = 0.1 ** (1/10)  # discount factor
-        self.epsilon = 0.95  # exploration rate
+        self.batch_size = 2048
+        self.gamma = 0.1 ** (1/11)  # discount factor
+        self.epsilon = 0.97  # exploration rate
         self.prev_espsilon = 0.95
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.0001
         self.model = QNetwork(state_size, action_size).to(device=self.device)  # train model
         self.target_model = QNetwork(state_size, action_size).to(device=self.device) # act model
         self.ans_model =  QNetwork(state_size, action_size).to(device=self.device) # final model
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-2)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
     # replay buffer
     def remember(self, state, action, reward, next_state, done):
         if len(self.memory) >= 100000:
@@ -112,7 +112,7 @@ class DQNAgent:
         return q_values.max(1)[1].item()
 
 
-def eval(env: chase3D, agent:DQNAgent,episode):
+def eval(env: chase3D, agent:DQNAgent):
     # test for the model
     state = env.reset()
     done = False
@@ -141,6 +141,8 @@ def eval(env: chase3D, agent:DQNAgent,episode):
     else:
         agent.epsilon = agent.prev_espsilon
         agent.model.load_state_dict(agent.ans_model.state_dict())
+    return model_reward
+
 if __name__ == "__main__":
     ## main function
     env = chase3D()
@@ -151,7 +153,7 @@ if __name__ == "__main__":
     eval_frequency = 20
     
     # Training parameters
-    num_episodes = 2000
+    num_episodes = 4000
     scores = []  # List to store the scores
     for episode in range (num_episodes):
         state = env.reset()
@@ -173,8 +175,8 @@ if __name__ == "__main__":
             print(f'episode : {episode}  epslion:{agent.epsilon}  total score: {total_reward}')
             agent.update_target_model()
         if episode % eval_frequency ==0 and episode != 0:
-            eval(env,agent,episode)
-        scores.append(total_reward)
+            r = eval(env,agent)
+            scores.append(r)
     plt.plot(scores)
     plt.xlabel('Episode')
     plt.ylabel('Score')
@@ -185,22 +187,7 @@ if __name__ == "__main__":
 ### start testing
     rewards = []
     for i in range (50):
-        state = env.reset()
-        done = False
-        cap = False
-        num = 0
-        total = 0
-        while not cap:
-            action = agent.act(state,True)
-            next_state, reward, cap = env.step(action,False)
-            state = next_state
-            if cap:
-                reward = 2000
-            total += reward
-            num += 1
-        rewards.append(total)
-        print(total)
-
+        rewards.append(eval(env,agent))
     plt.plot(rewards)
     plt.xlabel('episode')
     plt.ylabel('Score')

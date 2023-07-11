@@ -178,7 +178,7 @@ class chase3D():
                       (0, 0, -1), (0, 0, 1), (0, 1, -1), (0, 1, 0),
                       (0, 1, 1), (1, -1, -1), (1, -1, 0), (1, -1, 1),
                       (1, 0, -1), (1, 0, 1), (1, 1, -1), (1, 1, 0),
-                      (1, 1, 1), (0,0,0)
+                      (1, 1, 1), (0,0,0), (1,0,0)
                     ]
         self.limits = 50
         
@@ -212,16 +212,13 @@ class chase3D():
         reward = 0
         if self.is_captured():
             done = True
-            reward = 20000
+            reward = 2000
         else:
             pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
             time_penalty = -0.5   # calculate the reward
             #approach_reward = 150
             new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
-            if pre_distance - new_distance > 0:
-                reward = 100
-            else:
-                reward = -100
+            reward = 100 * (pre_distance - new_distance)
             reward += time_penalty * self.time
         states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
         self.time = self.time + 1
