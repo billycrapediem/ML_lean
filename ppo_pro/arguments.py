@@ -43,4 +43,6 @@ ppo_args.add_argument("--set_adam_eps", type=float, default=True, help="Trick 9:
 ppo_args.add_argument("--use_tanh", type=float, default=True, help="Trick 10: tanh activation function")
 ppo_args.add_argument("--use_sn", type=float, default=True, help="Trick 11: spectral normalization")
 
+# muti-agent
+ppo_args.add_argument('--agent_num',type=int,default=10, help="number of agent in the environment")
 ppo_args = ppo_args.parse_args()
