@@ -17,7 +17,6 @@ class ThreeDMap:
         for _ in range(int(self.obstacles_size)):
             ob = np.random.normal(50,15,3)
             obstacles.append(ob)
-        self.obstacles = np.zeros(shape=(int(self.obstacles_size)) * 3)
         cnt = 0
         #add obstacles into the map
         for ob in obstacles:
@@ -25,7 +24,6 @@ class ThreeDMap:
             y = round(ob[1])
             z = round(ob[2])
             for i in range(3):
-                self.obstacles[cnt] = ob[i]
                 cnt += 1
             if x >= 0 and x < self.X and y >=0 and y < self.Y and z >= 0 and z < self.Z:
                 self.map[x][y][z] = OBSTACLE
