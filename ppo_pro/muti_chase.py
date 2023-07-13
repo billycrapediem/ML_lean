@@ -2,25 +2,34 @@ import math
 import heapq
 import random
 import numpy as np
-import matplotlib.pyplot as plt
-import pprint
 
+OBSTACLE = 1
 class ThreeDMap:
     def __init__(self,X,Y,Z):
         self.X = X
         self.Y = Y
         self.Z = Z
         self.map = [[[0 for k in range (Z)]for i in range(X)] for j in range (Y)]
-    def add_blocker(self):
-        for i in range( 4, 7):
-            for j in range (8, 12):
-                for k in range (0, 10):
-                    self.map[i][j][k] = 1
-
-        for i in range (12,15):
-            for j in range (15, 18):
-                for k in range (0, 15):
-                    self.map[i][j][k] = 1
+    def add_obstacles(self):
+        #create obstacles
+        obstacles = []
+        self.obstacles_size = self.X * self.Y * self.Z * 0.05
+        for _ in range(int(self.obstacles_size)):
+            ob = np.random.normal(50,15,3)
+            obstacles.append(ob)
+        self.obstacles = np.zeros(shape=(int(self.obstacles_size)) * 3)
+        cnt = 0
+        #add obstacles into the map
+        for ob in obstacles:
+            x = round(ob[0])
+            y = round(ob[1])
+            z = round(ob[2])
+            for i in range(3):
+                self.obstacles[cnt] = ob[i]
+                cnt += 1
+            if x >= 0 and x < self.X and y >=0 and y < self.Y and z >= 0 and z < self.Z:
+                self.map[x][y][z] = OBSTACLE
+        
 def isCollision(map:ThreeDMap,cur_point):
     if map.X <= cur_point[0] or cur_point[0] < 0:
             return True
@@ -168,12 +177,12 @@ class target:
 
 class chase3D():
     def __init__(self) -> None:
-        self.state_size = 6
+        
         self.action_size = 27
-        self.agent_num = 5
+        self.agent_num = 3
         self.time_limits = 150
         self.time = 0
-        self.action_space = self.action_space = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
+        self.action_space  = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
                       (-1, 0, 0), (-1, 0, 1), (-1, 1, -1), (-1, 1, 0),
                       (-1, 1, 1), (0, -1, -1), (0, -1, 0), (0, -1, 1),
                       (0, 0, -1), (0, 0, 1), (0, 1, -1), (0, 1, 0),
@@ -181,13 +190,14 @@ class chase3D():
                       (1, 0, -1), (1, 0, 1), (1, 1, -1), (1, 1, 0),
                       (1, 1, 1), (0,0,0),(1,0,0)
                     ]
-
-        self.limits = 50
-        
+        self.limits = 100
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
+        self.map.add_obstacles()
+        self.state_size = 6 + int(self.map.obstacles_size * 3)
         #self.map.add_blocker()
     def reset(self) -> None:
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
+        self.map.add_obstacles()
         x_start = random.randint(0,self.limits - 1)
         y_start = random.randint(0,self.limits - 1)
         z_start = random.randint(0,self.limits - 1)
@@ -203,6 +213,7 @@ class chase3D():
             agent_z = random.randint(0,self.limits - 1)
             self.agent.append(Agent((agent_x,agent_y ,agent_z),self.map))
             state = [agent_x,agent_y ,agent_z,x_start,y_start,z_start]
+            state = np.concatenate((np.array(state), self.map.obstacles))
             states.append(state)
         self.time = 0
         return np.array(states, dtype= np.int32)
@@ -236,6 +247,7 @@ class chase3D():
                     reward = -100
                 reward += time_penalty * self.time
             state = np.array((agent.cur_point[0],agent.cur_point[1],agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2]),dtype=np.int32)
+            state = np.concatenate((state, self.map.obstacles))
             states.append(state)
             rewards.append(reward)
             dones.append(done)

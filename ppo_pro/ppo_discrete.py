@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 import torch.nn as nn
 from torch.distributions import Categorical
 import torch.nn.functional as f
@@ -193,6 +194,7 @@ class PPO_discrete:
         self.use_lr_decay = args.use_lr_decay
         self.use_adv_norm = args.use_adv_norm
         self.use_value_clip = args.use_value_clip
+        self.agent_num = args.agent_num
 
         # get the input dimension of actor and critic
         self.num_layers = args.num_layers
@@ -208,7 +210,7 @@ class PPO_discrete:
             self.device = torch.device(args.evaluator_device)
 
         if args.use_reward_norm:
-            self.reward_norm = Normalization(shape=1)
+            self.reward_norm = Normalization(shape=self.agent_num)
 
         self.shared_net = MlpLstmExtractor(
             input_dim=args.state_dim,
@@ -240,31 +242,32 @@ class PPO_discrete:
     def train(self, replay_buffer, total_steps):
         self.actor = self.actor.to(self.device)        
         batch, max_episode_len = replay_buffer.get_training_data(self.device)  # Transform the data into tensor
-
         # Calculate the advantage using GAE
-        adv = []
-        gae = 0
-        with torch.no_grad():  # adv and v_target have no gradient
-            # deltas.shape=(batch_size,max_episode_len,1)
-            deltas = batch['r'] + self.gamma * batch['v'][:, 1:] - batch['v'][:, :-1]
-            deltas = deltas * batch['active']
-            for t in reversed(range(max_episode_len)):
-                gae = deltas[:, t] + self.gamma * self.lamda * gae
-                adv.insert(0, gae)
-            adv = torch.stack(adv, dim=1)  # adv.shape(batch_size,max_episode_len,1)
-            v_target = adv + batch['v'][:, :-1]  # v_target.shape(batch_size,max_episode_len,1)
-            if self.use_adv_norm:  # Trick 1: advantage normalization
-                mean = adv.mean()
-                std = adv.std()
-                adv = (adv - mean) / (std + 1e-5) * batch['active']
+        agent_adv = []
+        for id in range(self.agent_num):
+            gae = 0
+            adv = []
+            with torch.no_grad():  # adv and v_target have no gradient
+                # deltas.shape=(batch_size,max_episode_len,1)
+            
+                deltas = batch['r'][id] + self.gamma * batch['v'][id,:, 1:] - batch['v'][id,:, :-1]
+                deltas = deltas * batch['active'][id]
+                for t in reversed(range(max_episode_len)):
+                    gae = deltas[:, t] + self.gamma * self.lamda * gae
+                    adv.insert(0, gae)
+                adv = torch.stack(adv, dim=1)  # adv.shape(batch_size,max_episode_len,1)
+                v_target = adv + batch['v'][id,:, :-1] # v_target.shape(batch_size,max_episode_len,1)
+                if self.use_adv_norm:  # Trick 1: advantage normalization
+                    mean = adv.mean()
+                    std = adv.std()
+                    adv = (adv - mean) / (std + 1e-5) * batch['active'][id]
+                agent_adv.append(adv)
         object_critics = 0.0
         object_actors = 0.0
         update_time = 0
-
-        self.ac_optimizer.zero_grad()
-        
-        batch, _ = replay_buffer.get_training_data(self.device)  # Transform the data into tensor
-        for index in BatchSampler(SequentialSampler(range(self.batch_size)), self.mini_batch_size, False):
+        self.ac_optimizer.zero_grad()  
+        for id in range(self.agent_num):
+            batch, _ = replay_buffer.get_training_data(self.device)  # Transform the data into tensor
             actor_hidden_state = torch.zeros(
                 size=(self.num_layers, self.mini_batch_size, self.rnn_hidden_dim),
                 dtype=torch.float32,
@@ -275,32 +278,29 @@ class PPO_discrete:
                 dtype=torch.float32,
                 device=self.device
             )
-            a_logprob_now, dist_entropy = self.actor.get_logprob_and_entropy(batch['state'][index], actor_hidden_state, batch['a'][index])
-            values_now, _ = self.critic(batch['state'][index], critic_hidden_state)
-            ratios = torch.exp(a_logprob_now.unsqueeze(-1) - batch['a_logprob'][index].detach())  # Attention! Attention! 'a_log_prob_n' should be detached.
+            a_logprob_now, dist_entropy = self.actor.get_logprob_and_entropy(batch['state'][id,:], actor_hidden_state, batch['a'][id,:])
+            values_now, _ = self.critic(batch['state'][id,:], critic_hidden_state)
+            ratios = torch.exp(a_logprob_now.unsqueeze(-1) - batch['a_logprob'][:].detach())  # Attention! Attention! 'a_log_prob_n' should be detached.
             # dist_entropy.shape=(mini_batch_size, max_episode_len, 1)
             # a_logprob_n_now.shape=(mini_batch_size, max_episode_len, 1)
             # batch['a_n'][index].shape=(mini_batch_size, max_episode_len, 1)
             # ratios.shape=(mini_batch_size, max_episode_len, 1)
-            surr1 = ratios * adv[index]
-            surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * adv[index]
+            surr1 = ratios * agent_adv[id]
+            surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * agent_adv[id]
             actor_loss = -torch.min(surr1, surr2) - self.entropy_coef * dist_entropy.unsqueeze(-1)
-            actor_loss = (actor_loss * batch['active'][index]).sum() / batch['active'][index].sum()
-
+            actor_loss = (actor_loss * batch['active'][id]).sum() / batch['active'][id].sum()
             if self.use_value_clip:
-                values_old = batch["v"][index, :-1].detach()
-                values_error_clip = torch.clamp(values_now - values_old, -self.epsilon, self.epsilon) + values_old - v_target[index]
-                values_error_original = values_now - v_target[index]
+                values_old = batch["v"][id,:, :-1].detach()
+                values_error_clip = torch.clamp(values_now - values_old, -self.epsilon, self.epsilon) + values_old - v_target
+                values_error_original = values_now - v_target
                 critic_loss = torch.max(values_error_clip ** 2, values_error_original ** 2)
             else:
-                critic_loss = (values_now - v_target[index]) ** 2
-            critic_loss = (critic_loss * batch['active'][index]).sum() / batch['active'][index].sum()
-            
+                critic_loss = (values_now - v_target) ** 2
+            critic_loss = (critic_loss * batch['active']).sum() / batch['active'].sum()
             ac_loss = actor_loss + critic_loss
             ac_loss.backward()
             if self.use_grad_clip:  # Trick 7: Gradient clip
                 torch.nn.utils.clip_grad_norm_(self.ac_parameters, 10.0)
-            
             object_critics += critic_loss.item()
             object_actors += actor_loss.item()
             update_time += 1
@@ -318,10 +318,11 @@ class PPO_discrete:
         for p in self.ac_optimizer.param_groups:
             p['lr'] = lr_now
     
+    #worker collecting data from the environment
     def explore_env(self, env, num_episode):
         exp_reward = 0.0
         sample_steps = 0
-        self.minibuffer = MiniBuffer(episode_limit=self.args.episode_limit, sample_epi_num=num_episode, worker_device=self.device)
+        self.minibuffer = MiniBuffer(episode_limit=self.args.episode_limit, sample_epi_num=num_episode, agent_num=self.agent_num, worker_device=self.device)
         self.minibuffer.reset_buffer(obs_dim=self.state_dim, action_dim=self.action_dim)
         for k in range(num_episode):
             episode_reward, episode_steps = self.run_episode(env, num_episode=k)
@@ -329,34 +330,45 @@ class PPO_discrete:
             sample_steps += episode_steps
         return exp_reward / num_episode, self.minibuffer, sample_steps
 
-    def run_episode(self, env, num_episode=0):  #
-        episode_reward = 0
-        state = env.reset()
-        actor_hidden_state = torch.zeros(size=(self.num_layers, 1, self.rnn_hidden_dim), dtype=torch.float32, device=self.device)
-        critic_hidden_state = torch.zeros(size=(self.num_layers, 1, self.rnn_hidden_dim), dtype=torch.float32, device=self.device)
-        for episode_step in range(self.args.episode_limit):
-            state = torch.as_tensor(state, dtype=torch.float32).to(self.device)
-            a, a_logprob, actor_hidden_state = self.actor.choose_action(state.unsqueeze(0).unsqueeze(0), actor_hidden_state, False)
-            v, critic_hidden_state = self.critic(state.unsqueeze(0).unsqueeze(0), critic_hidden_state)  # Get the state values (V(s)) of N agents
-            v = v.flatten()
-            next_state, r, done = env.step(a.detach().cpu().numpy()[0])  # Take a step
 
-            episode_reward += r
+    # interact with the environment 
+    def run_episode(self, env, num_episode=0):  #
+        state = env.reset()
+        episode_reward = 0
+        done = False
+        actor_hidden_state = torch.zeros(size=(self.agent_num,self.num_layers, 1, self.rnn_hidden_dim), dtype=torch.float32, device=self.device)
+        critic_hidden_state = torch.zeros(size=(self.agent_num,self.num_layers, 1, self.rnn_hidden_dim), dtype=torch.float32, device=self.device)
+        for episode_step in range(self.args.episode_limit):
+            actions = []
+            probs = []
+            values = []
+            state = torch.as_tensor(np.array(state), dtype=torch.float32).to(self.device)
+            for id in range(self.agent_num):
+                a, a_logprob, actor_hidden_state[id] = self.actor.choose_action(state[id].unsqueeze(0).unsqueeze(0), actor_hidden_state[id], False)
+                v, critic_hidden_state[id] = self.critic(state[id].unsqueeze(0).unsqueeze(0), critic_hidden_state[id])  # Get the state values (V(s)) of N agents
+                v = v.flatten()
+                actions.append(a.detach().cpu().numpy().item())
+                values.append(v)
+                probs.append(a_logprob)
+            next_state, r, dones = env.step(actions)  # Take a step
             r = self.reward_norm(r)
-            
-            # Store the transition
-            r = torch.as_tensor(r, dtype=torch.float32).to(self.device)
-            dw = torch.as_tensor(1 - done, dtype=torch.float32).to(self.device)
-            self.minibuffer.store_transition(num_episode, episode_step, state, v, a, a_logprob, r, dw)
+            episode_reward += np.sum(np.array(r))
+            for id in range(self.agent_num):
+                # Store the transition
+                r_store = torch.as_tensor(r[id], dtype=torch.float32).to(self.device)
+                dw_store = torch.as_tensor(1 - dones[id], dtype=torch.float32).to(self.device)
+                if dones[id]:
+                    done = True
+                self.minibuffer.store_transition(num_episode, episode_step, state[id], values[id], actions[id], probs[id] , r_store, dw_store,id)
             state = next_state
             if done:
                 break
-
         # An episode is over, store obs_n, s and avail_a_n in the last step
-        state = torch.as_tensor(state, dtype=torch.float32).to(self.device)
-        v, _ = self.critic(state.unsqueeze(0).unsqueeze(0), critic_hidden_state)
-        v = v.flatten()
-        self.minibuffer.store_last_value(num_episode, episode_step + 1, v)
+        for id in range(self.agent_num):
+            state_store = torch.as_tensor(state[id], dtype=torch.float32).to(self.device)
+            v, _ = self.critic(state_store.unsqueeze(0).unsqueeze(0), critic_hidden_state[id])
+            v = v.flatten()
+            self.minibuffer.store_last_value(num_episode, episode_step + 1,id, v)
         return episode_reward, episode_step + 1
 
     def save_model(self, cwd):
