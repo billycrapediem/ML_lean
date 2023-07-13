@@ -7,7 +7,7 @@ import torch
 import argparse
 import numpy as np
 
-from case3d_env import chase3D
+from muti_chase import chase3D
 from ppo_discrete import PPO_discrete
 from runner import Learner, Worker, EvaluatorProc, draw_learning_curve
 from arguments import ppo_args

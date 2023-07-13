@@ -95,6 +95,7 @@ class Worker(object):
 @ray.remote(num_cpus=1, num_gpus=0.01)
 class EvaluatorProc(object):
     def __init__(self, args):
+        self.agent_num = args.agent_num
         self.env = args.env_class()  # the env for Evaluator, `eval_env = env` in default
         self.agent = args.agent_class(args, batch_size=None, mini_batch_size=None, agent_type='Evaluator')
         self.agent_id = 0
@@ -104,6 +105,7 @@ class EvaluatorProc(object):
         self.break_step = args.max_train_steps
         self.num_layers = args.num_layers  # number of rnn hidden layers
         self.rnn_hidden_dim = args.rnn_hidden_dim  # 
+        self.agent_num = args.agent_num #number of agent in the env
         del args
 
         self.recorder = []  # total_step, r_avg, r_std, obj_c, ...
@@ -179,7 +181,8 @@ class EvaluatorProc(object):
                 env=self.env, 
                 actor=self.agent.actor, 
                 num_layers=self.num_layers, 
-                rnn_hidden_dim=self.rnn_hidden_dim
+                rnn_hidden_dim=self.rnn_hidden_dim,
+                agent_num=self.agent_num
             )
             rewards_steps_list.append(rewards_steps)
         rewards_steps_ten = torch.tensor(rewards_steps_list, dtype=torch.float32)
@@ -187,20 +190,21 @@ class EvaluatorProc(object):
 
 
 """util"""
-def evaluate(env, actor, num_layers, rnn_hidden_dim):  #
+def evaluate(env, actor, num_layers, rnn_hidden_dim,agent_num):  #
     episode_reward = 0
     device = next(actor.parameters()).device
     state = env.reset()
-    actor_hidden_state = torch.zeros(size=(num_layers, 1, rnn_hidden_dim), dtype=torch.float32, device=device)
+    actor_hidden_state = torch.zeros(size=(agent_num,num_layers, 1, rnn_hidden_dim), dtype=torch.float32, device=device)
     for step in range(env.time_limits):
-        state = torch.as_tensor(state, dtype=torch.float32).to(device)
-        a, actor_hidden_state = actor.choose_action(state.unsqueeze(0).unsqueeze(0), actor_hidden_state, True)
-        state, r, done = env.step(a.detach().cpu().numpy()[0])  # Take a step
-        episode_reward += r
-
+        action = []
+        state = torch.as_tensor(np.array(state), dtype=torch.float32).to(device)
+        for id in range(agent_num):
+            a, actor_hidden_state[id] = actor.choose_action(state[id].unsqueeze(0).unsqueeze(0), actor_hidden_state[id], True)
+            action.append(a.detach().cpu().numpy().item())
+        state, r, done = env.step(action)  # Take a step
+        episode_reward += np.sum(np.array(r))
         if done:
             break
-
     return episode_reward, step
 
 
