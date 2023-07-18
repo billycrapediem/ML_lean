@@ -181,8 +181,7 @@ if __name__ == "__main__":
     plt.xlabel('Episode')
     plt.ylabel('Score')
     plt.title('Training Scores')
-    plt.savefig('D3QN.png')
-    
+
 
 ### start testing
     rewards = []
@@ -192,7 +191,8 @@ if __name__ == "__main__":
     plt.xlabel('episode')
     plt.ylabel('Score')
     plt.title('testing Scores')
-    plt.savefig('test_D3QN.png')
+
+    torch.save(agent.ans_model,'D3QN.pth')
     
     
     

@@ -189,6 +189,7 @@ class chase3D():
         #self.map.add_blocker()
     def reset(self) -> None:
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
+        self.map.add_obstacles()
         x_start = random.randint(0,self.limits - 1)
         y_start = random.randint(0,self.limits - 1)
         z_start = random.randint(0,self.limits - 1)
