@@ -171,8 +171,8 @@ class target:
 
 
 class chase3D():
-    def __init__(self) -> None:
-        
+    def __init__(self,agent_num) -> None:
+        self.state_size = 6
         self.action_size = 27
         self.agent_num = 3
         self.time_limits = 150
@@ -224,6 +224,7 @@ class chase3D():
         if self.time % 5 == 0:
             self.target.update(self.map)
         cnt = 0
+        terminated = False
         for agent in self.agent:
             move = self.action_space[action[cnt]] # update the point
             pre_agent_point = agent.cur_point
