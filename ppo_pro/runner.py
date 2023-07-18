@@ -142,11 +142,9 @@ class EvaluatorProc(object):
         returns = rewards_step_ten[:, 0]  # episodic cumulative returns of an
         steps = rewards_step_ten[:, 1]  # episodic step number
         avg_r = returns.mean().item()
-        # std_r = returns.std().item()
-        std_r = 0
+        std_r = returns.std().item()
         avg_s = steps.mean().item()
-        # std_s = steps.std().item()
-        std_s = 0
+        std_s = steps.std().item()
 
         train_time = int(time.time() - self.start_time)
 

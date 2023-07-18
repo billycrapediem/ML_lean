@@ -12,15 +12,19 @@ class ThreeDMap:
         self.Z = Z
         self.map = [[[0 for k in range (Z)]for i in range(X)] for j in range (Y)]
     def add_blocker(self):
-        for i in range( 4, 7):
-            for j in range (8, 12):
-                for k in range (0, 10):
-                    self.map[i][j][k] = 1
-
-        for i in range (12,15):
-            for j in range (15, 18):
-                for k in range (0, 15):
-                    self.map[i][j][k] = 1
+        num = self.X * self.Y * self.Z * 0.02
+        center = ( self.X + self.Y + self.Z) / 3
+        for _ in range(num):
+            ob = np.random.normal(center,self.X / 2,3)
+            for i in range (-1,2):
+                for j in range(-1,2):
+                    for k in range(-1,2):
+                        pos = (round(ob[1] + i),round(ob[2] + j),round(ob[3] + k))
+                        if self.in_bounds(pos):
+                            self.map[pos[0]][pos[1]][pos[2]] = 1
+    def in_bounds(self,pos):
+        return pos[0] >=0 and pos[0] <= self.X -1 and pos[1] >= 0 and pos[1] <= self.Y - 1 and pos[2] >= 0 and pos[2] <= self.Z - 1
+        
 def isCollision(map:ThreeDMap,cur_point):
     if map.X <= cur_point[0] or cur_point[0] < 0:
             return True
@@ -173,9 +177,7 @@ class chase3D():
         self.time_limits = 100
         self.time = 0
         self.action_space = [(1,0,0),(0,1,0),(0,0,1),(-1,0,0),(0,-1,0),(0,0,-1)]
-
         self.limits = 50
-        
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         #self.map.add_blocker()
     def reset(self) -> None:
@@ -220,4 +222,7 @@ class chase3D():
         states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
         self.time = self.time + 1
         return np.array(states,dtype=np.int32) ,reward, done
+
+
+
         

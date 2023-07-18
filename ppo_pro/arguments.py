@@ -2,7 +2,7 @@ import argparse
 
 ppo_args = argparse.ArgumentParser("Hyperparameters Setting for PPO-continuous")
 # Learner and Worker
-ppo_args.add_argument("--max_train_steps", type=int, default=int(5e7), help=" Maximum number of training steps")
+ppo_args.add_argument("--max_train_steps", type=int, default=int(6e7), help=" Maximum number of training steps")
 ppo_args.add_argument("--sample_epi_num", type=int, default=1, help="Sample episode number")
 ppo_args.add_argument("--action_max", type=list, default=[0.5, 0.5, 0.5, 0.5], help="Sample episode number")
 
@@ -27,7 +27,7 @@ ppo_args.add_argument("--lr", type=float, default=3e-4, help="Learning rate of a
 ppo_args.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
 ppo_args.add_argument("--lamda", type=float, default=0.95, help="GAE parameter")
 ppo_args.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
-ppo_args.add_argument("--K_epochs", type=int, default=5, help="PPO parameter")
+ppo_args.add_argument("--K_epochs", type=int, default=2, help="PPO parameter")
 
 # Tricks
 ppo_args.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")

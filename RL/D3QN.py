@@ -125,7 +125,7 @@ def eval(env: chase3D, agent:DQNAgent):
         next_state, reward, caputred = env.step(action)
         state = next_state
         rewards.append(reward)
-        if reward == 2000:
+        if reward == 200:
             print("capturedddddd")
         model_reward += reward
         time += 1
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     eval_frequency = 20
     
     # Training parameters
-    num_episodes = 4000
+    num_episodes = 8000
     scores = []  # List to store the scores
     for episode in range (num_episodes):
         state = env.reset()

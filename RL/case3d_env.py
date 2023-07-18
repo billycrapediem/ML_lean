@@ -4,23 +4,32 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import pprint
-
 class ThreeDMap:
     def __init__(self,X,Y,Z):
         self.X = X
         self.Y = Y
         self.Z = Z
         self.map = [[[0 for k in range (Z)]for i in range(X)] for j in range (Y)]
-    def add_blocker(self):
-        for i in range( 4, 7):
-            for j in range (8, 12):
-                for k in range (0, 10):
-                    self.map[i][j][k] = 1
-
-        for i in range (12,15):
-            for j in range (15, 18):
-                for k in range (0, 15):
-                    self.map[i][j][k] = 1
+    def add_obstacles(self):
+        self.obstacles_x = []
+        self.obstacles_y = []
+        self.obstacles_z = []
+        num = int(self.X * self.Y * self.Z * 0.02)
+        center = ( self.X + self.Y + self.Z) / 3
+        for _ in range(num):
+            ob = np.random.normal(center,self.X / 2,3)
+            for i in range (-1,2):
+                for j in range(-1,2):
+                    for k in range(-1,2):
+                        pos = (round(ob[1] + i),round(ob[2] + j),round(ob[2] + k))
+                        if self.in_bounds(pos):
+                            self.obstacles_x.append(pos[0])
+                            self.obstacles_y.append(pos[1])
+                            self.obstacles_z.append(pos[2])
+                            self.map[pos[0]][pos[1]][pos[2]] = 1
+    def in_bounds(self,pos):
+        return pos[0] >=0 and pos[0] <= self.X -1 and pos[1] >= 0 and pos[1] <= self.Y - 1 and pos[2] >= 0 and pos[2] <= self.Z - 1
+        
 def isCollision(map:ThreeDMap,cur_point):
     if map.X <= cur_point[0] or cur_point[0] < 0:
             return True
@@ -85,22 +94,21 @@ class AStar:
     def search(self):
 
         if self.start_point == self.end_point:
-
             return None
         self.parent[self.start_point] = self.start_point
         self.g_value[self.start_point] = 0
         self.g_value[self.end_point] = math.inf
-
+        return_point = None
         time = 0
         heapq.heappush(self.open_list,(0,self.start_point))
         while self.open_list and time <= 1000:
             time += 1
-
             _,cur_point = heapq.heappop(self.open_list)
+            return_point = cur_point
             self.closed_list.append(cur_point)
             ## sus is the end point
             if self.check_end_point(cur_point):
-                break
+                return self.extract_path(self.end_point)
             successors = self.get_successor(cur_point = cur_point)
             for sus_point in successors:
                 ## compute g and h value for each successor
@@ -111,30 +119,26 @@ class AStar:
                     self.g_value[sus_point] = new_cost
                     self.parent[sus_point] = cur_point
                     heapq.heappush(self.open_list,(self.f_value(sus_point),sus_point))
-        return None
+        return self.extract_path(return_point)
 class Agent:
     def __init__(self,start_point,map:ThreeDMap) -> None:
         self.cur_point = start_point
         self.prev_point = []
-        for i in range (-1,2):
-            for j in range (-1,2):
-                for k in range(-1,2):
-                    if not isCollision(map,(self.cur_point[0]+i,self.cur_point[1]+j,self.cur_point[2]+k)): 
-                        map.map[self.cur_point[0]+i][self.cur_point[1]+j][self.cur_point[2]+k] = 2
-                        self.prev_point.append((self.cur_point[0]+i,self.cur_point[1]+j,self.cur_point[2]+k))
+        if not isCollision(map,(self.cur_point[0],self.cur_point[1],self.cur_point[2])): 
+            map.map[self.cur_point[0]][self.cur_point[1]][self.cur_point[2]] = 2  
+            self.prev_point.append((self.cur_point[0],self.cur_point[1],self.cur_point[2]))
                         
     def update(self,action,map: ThreeDMap):
         while self.prev_point:
             point = self.prev_point.pop()
             map.map[point[0]][point[1]][point[2]] = 0
         self.cur_point = (self.cur_point[0] + action[0], self.cur_point[1] + action[1], self.cur_point[2] + action[2])
-        for i in range (-1,2):
-            for j in range (-1,2):
-                for k in range(-1,2):
-                    if not isCollision(map,(self.cur_point[0]+i,self.cur_point[1]+j,self.cur_point[2]+k)): 
-                        map.map[self.cur_point[0]+i][self.cur_point[1]+j][self.cur_point[2]+k] = 2
-                        self.prev_point.append((self.cur_point[0]+i,self.cur_point[1]+j,self.cur_point[2]+k))
-        return map
+        if not isCollision(map,(self.cur_point[0],self.cur_point[1],self.cur_point[2])): 
+            map.map[self.cur_point[0]][self.cur_point[1]][self.cur_point[2]] = 2
+            self.prev_point.append((self.cur_point[0],self.cur_point[1],self.cur_point[2]))
+            return 0
+        else:
+            return -3
 class target:
     def __init__(self,start_point,end_point) -> None:
         self.cur_point = start_point
@@ -172,16 +176,15 @@ class chase3D():
         self.action_size = 27
         self.time_limits = 100
         self.time = 0
-        self.action_space = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
+        self.action_space  = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
                       (-1, 0, 0), (-1, 0, 1), (-1, 1, -1), (-1, 1, 0),
                       (-1, 1, 1), (0, -1, -1), (0, -1, 0), (0, -1, 1),
                       (0, 0, -1), (0, 0, 1), (0, 1, -1), (0, 1, 0),
                       (0, 1, 1), (1, -1, -1), (1, -1, 0), (1, -1, 1),
                       (1, 0, -1), (1, 0, 1), (1, 1, -1), (1, 1, 0),
-                      (1, 1, 1), (0,0,0), (1,0,0)
+                      (1, 1, 1), (0,0,0),(1,0,0)
                     ]
-        self.limits = 50
-        
+        self.limits = 20
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         #self.map.add_blocker()
     def reset(self) -> None:
@@ -200,26 +203,29 @@ class chase3D():
         self.time = 0
         state = (agent_x,agent_y ,agent_z,x_start,y_start,z_start)
         return np.array(state, dtype= np.int32)
-    def is_captured(self):
-        return self.map.map[self.target.cur_point[0]][self.target.cur_point[1]][self.target.cur_point[2]]== 2
+    def is_captured(self,pos):
+        return np.linalg.norm(np.array(pos) - np.array(self.target.cur_point)) < 2
     def step(self,action):
         move = self.action_space[action] # update the point
         pre_agent_point = self.agent.cur_point
-        self.agent.update(move,self.map)
-        if self.time % 3 == 0:
+        r = self.agent.update(move,self.map)
+        if self.time % 1 == 0:
             self.target.update(self.map)
         done = self.time >= self.time_limits
         reward = 0
-        if self.is_captured():
+        if self.is_captured(self.agent.cur_point):
             done = True
-            reward = 2000
+            reward = 200
         else:
             pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
-            time_penalty = -0.5   # calculate the reward
+            time_penalty = -0.07   # calculate the reward
             #approach_reward = 150
             new_distance = np.linalg.norm(np.array(self.agent.cur_point) - np.array(self.target.cur_point))
-            reward = 100 * (pre_distance - new_distance)
-            reward += time_penalty * self.time
+            if pre_distance - new_distance > 0:
+                reward = 10
+            else:
+                reward = -10
+            reward += time_penalty * self.time + r
         states = (self.agent.cur_point[0],self.agent.cur_point[1],self.agent.cur_point[2],self.target.cur_point[0],self.target.cur_point[1],self.target.cur_point[2])
         self.time = self.time + 1
         return np.array(states,dtype=np.int32) ,reward, done
