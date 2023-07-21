@@ -47,6 +47,7 @@ def train_agent_multiprocessing(args):
     # implement environment information
     env = args.env_class()
     _ = env.reset()
+    args.agent_num = env.agent_num
     args.episode_limit = env.time_limits
     args.state_dim = env.state_size
     args.action_dim = 1
@@ -163,7 +164,6 @@ if __name__ == '__main__':
 
     args.env_class = env_class
     args.agent_class = agent_class
-    
     current_cwd = os.getcwd()
     print(current_cwd)
     train_agent_multiprocessing(args)

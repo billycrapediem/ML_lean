@@ -28,19 +28,27 @@ def data_preprocess():
     data_state = np.load('state.npy')
     data_vel = np.load('vel.npy')
     data_Ft = np.load('Ft.npy')
+    print(data_state[6,:].max())
     #process the euler angle to normalize into [-1,1]
     min_value = -np.pi
     angle_range = 2 * np.pi
+    # normalize the angle 
     for i in range (3,6):
         data_state[i,:] = (data_state[i,:] - min_value) / (angle_range)
+    #try to not normalize the output 
+    '''
     for i in range (0,3):
         data_Ft[i,:] = (data_Ft[i,:] - (-50)) / (100)
     for i in range (3,6):
         data_Ft[i,:] = (data_Ft[i,:] - (-5)) / (10)
+    '''
     data = np.concatenate((data_state,data_vel),axis=0)
     data = np.transpose(data)
     data_Ft = np.transpose(data_Ft)
-    return data,data_Ft
+    #return data,data_Ft
+    data = np.concatenate((data,data_Ft),axis=1)
+    np.random.shuffle(data)
+    np.save('process_data.npy',data) 
 
 
 
@@ -55,12 +63,17 @@ def train():
     output_dim = 6
     # get data
 
-    data, label_value = data_preprocess()
+    data = np.load('process_data.npy')
     train_size = int(len(data) * 0.75)
-    train_data = data[:train_size,:]
-    train_lable = label_value[:train_size,:]
-    test_data = data[:train_size,:]
-    test_lable = label_value[:train_size,:]
+    np.random.shuffle(data)
+    train_dataset = data[:train_size,:]
+    test_dataset = data[train_size:,:]
+    train_data = train_dataset[:,:16]
+    train_lable = train_dataset[:,16:]
+    test_data = test_dataset[:,:16]
+    test_lable = test_dataset[:,16:]
+    print(train_data.shape)
+
     
     test_data = torch.tensor(test_data,dtype=torch.float32)
     test_lable = torch.tensor(test_lable,dtype=torch.float32)
@@ -96,9 +109,6 @@ def train():
         if episode % 5 == 0:
             print(f'episode : {episode}, loss:{loss}')
 
-    plt.plot(loss_value)
-    plt.plot(valid_loss)
-    plt.savefig('Relu_train_loss.png')
     
     torch.save(net_work.state_dict(),'Relu_neuro_net.pt')
     eval(test_data,test_lable, net_work, True)
@@ -121,6 +131,7 @@ def eval(test_data, test_lable, net_work, final = False):
         eval_loss = []
         comparative_loss = []
         data = []
+        #initialize the array 
         for i in range(6):
             array = []
             array_1 = []
@@ -137,18 +148,21 @@ def eval(test_data, test_lable, net_work, final = False):
                 data[i].append(data_y[i])
             loss = nn.MSELoss()(predict_y,data_y)
             eval_loss.append(loss.item())
+            plt.scatter(torch.sum(data_x),loss,c='c')
+        plt.xlabel("value")
+        plt.ylabel("loss")
+        plt.title('loss')
+        plt.savefig('Relu_test_mseloss.png')
         #plt.plot(eval_loss,label = "loss")
         print(f'the MSE loss mean is :{np.array(eval_loss).mean()}')    
         if final : 
-            plt.plot(eval_loss)
-            plt.savefig('Relu_test_mseloss_v2.png')
             fig, axes = plt.subplots(len(comparative_loss), 1, figsize=(6, 6 * len(comparative_loss)))
             for i in range (6):
-                x = comparative_loss[i]
+                y = comparative_loss[i]
                 print(f'datatype: {i}, comparative loss: {np.array(x).mean()}')
-                y = data[i]
+                x = data[i]
                 ax = axes[i]
-                ax.scatter(y, x)
+                ax.scatter(x,y)
                 ax.set_xlabel('data')
                 ax.set_ylabel('loss')
                 ax.set_title(f'数据集{i+1}')
@@ -161,3 +175,20 @@ def eval(test_data, test_lable, net_work, final = False):
 
 if __name__ == '__main__':
     train()
+    
+
+
+    '''
+    network = neuro_net(16,6)
+    data = np.load('process_data.npy')
+    test_data, test_label = data[:,:16], data[:,16:]
+
+    network.load_state_dict(torch.load('Relu_neuro_net.pt'))
+    
+    print(test_label.shape)
+    test_data = torch.tensor(test_data,dtype=torch.float32)
+    test_label = torch.tensor(test_label,dtype=torch.float32)
+    eval(test_data,test_label,network,True)
+    '''
+    
+    

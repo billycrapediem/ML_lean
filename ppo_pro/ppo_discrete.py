@@ -28,19 +28,6 @@ def preproc_layer(input_size, output_size, is_sn=False):
 class MlpLstmExtractor(nn.Module):
     def __init__(self, input_dim, mlp_hidden_dim, mlp_output_dim, rnn_hidden_dim, num_rnn_layers):
         super().__init__()
-<<<<<<< HEAD
-        '''
-=======
->>>>>>> c72ca55a757b85108e37aa1d0df566ce9faabb46
-        self.cnn = nn.Sequential(
-            nn.Conv3d(in_channels=1,out_channels=6,kernel_size=5,stride=1,padding=2),
-            nn.ReLU(),
-            nn.MaxPool2d
-        )
-<<<<<<< HEAD
-        '''
-=======
->>>>>>> c72ca55a757b85108e37aa1d0df566ce9faabb46
         self.fc1 = nn.Sequential(
             preproc_layer(input_dim, mlp_hidden_dim),
             nn.ReLU(),

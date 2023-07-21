@@ -193,6 +193,7 @@ def evaluate(env, actor, num_layers, rnn_hidden_dim,agent_num):  #
     device = next(actor.parameters()).device
     state = env.reset()
     reward = []
+    done = False
     actor_hidden_state = torch.zeros(size=(agent_num,num_layers, 1, rnn_hidden_dim), dtype=torch.float32, device=device)
     for step in range(env.time_limits):
         action = []
@@ -200,16 +201,21 @@ def evaluate(env, actor, num_layers, rnn_hidden_dim,agent_num):  #
         for id in range(agent_num):
             a, actor_hidden_state[id] = actor.choose_action(state[id].unsqueeze(0).unsqueeze(0), actor_hidden_state[id], True)
             action.append(a.detach().cpu().numpy().item())
-        state, r, done = env.step(action)  # Take a step
-        reward.append(r)
-        episode_reward += np.sum(np.array(r))
+        state, r, dones = env.step(action)  # Take a step
+        for id in range(agent_num):
+            if dones[id]:
+                done = True
+        sum = np.sum(np.array(r)).item()
+        reward.append(sum)
+        episode_reward += sum
         if done:
             break
     import matplotlib.pyplot as plt
+    plt.plot(reward)
     plt.xlabel('step')
     plt.ylabel('reward')
-    plt.plot(reward)
     plt.savefig('episode_reward.png')
+    plt.close('all') 
     return episode_reward, step
 
 

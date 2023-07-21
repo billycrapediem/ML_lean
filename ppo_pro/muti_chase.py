@@ -14,8 +14,8 @@ class ThreeDMap:
         self.obstacles_x = []
         self.obstacles_y = []
         self.obstacles_z = []
-        num = int(self.X * self.Y * self.Z * 0.02)
-        center = ( self.X + self.Y + self.Z) / 3
+        num = int(self.X * self.Y * self.Z * 0.001)
+        center = self.X / 2
         for _ in range(num):
             ob = np.random.normal(center,self.X / 2,3)
             for i in range (-1,2):
@@ -165,16 +165,18 @@ class target:
         self.get_path(map)
         self.cur_point = self.next_move
         if not self.path :
-                self.next_move = self.cur_point
+            self.next_move = self.cur_point
+            return True
         else:
             self.next_move = self.path.pop()
+            return False
 
 
 class chase3D():
     def __init__(self) -> None:
         
         self.action_size = 27
-        self.agent_num = 3
+        self.agent_num = 8
         self.time_limits = 150
         self.time = 0
         self.action_space  = [(-1, -1, -1), (-1, -1, 0), (-1, -1, 1), (-1, 0, -1), 
@@ -185,13 +187,14 @@ class chase3D():
                       (1, 0, -1), (1, 0, 1), (1, 1, -1), (1, 1, 0),
                       (1, 1, 1), (0,0,0),(1,0,0)
                     ]
-        self.limits = 20
+        self.limits = 30
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
         self.map.add_obstacles()
         self.state_size = 6 + 9 * 3 # the 9 is the sensor map
         #self.map.add_blocker()
-    def reset(self) -> None:
+    def reset(self,update_time) -> None:
         self.map = ThreeDMap(self.limits,self.limits,self.limits)
+        self.update_time = update_time
         self.map.add_obstacles()
         while True:
             x_start = random.randint(0,self.limits - 1)
@@ -200,7 +203,7 @@ class chase3D():
             x_end = random.randint(0,self.limits - 1)
             y_end = random.randint(0,self.limits - 1)
             z_end = random.randint(0,self.limits - 1)
-            if self.map.map[x_start][y_start][z_start] == 0 and self.map.map[x_end][y_end][z_end] == 0:
+            if self.map.map[x_start][y_start][z_start] == 0 and self.map.map[x_end][y_end][z_end] ==0 and np.linalg.norm(np.array([x_start,y_start,z_start]) - np.array([x_end,y_end,z_end])) >7:
                 self.target = target((x_start,y_start,z_start),(x_end,y_end,z_end))
                 break
         states = []
@@ -216,26 +219,31 @@ class chase3D():
         self.time = 0
         return np.array(states, dtype= np.int32)
     def is_captured(self,pos):
-        return np.linalg.norm(np.array(pos) - np.array(self.target.cur_point)) < 4
+        return np.linalg.norm(np.array(pos) - np.array(self.target.cur_point)) < 2
     def step(self,action):
         states = []
         rewards = []
         dones = []
-        if self.time % 5 == 0:
-            self.target.update(self.map)
+        terminated = False
+        if self.update_time < 1:
+            for i in range(int( 1/ self.update_time)):
+                terminated = self.target.update(self.map)
+        else:
+            if self.time % self.update_time == 0:
+                terminated = self.target.update(self.map)
         cnt = 0
         for agent in self.agent:
             move = self.action_space[action[cnt]] # update the point
             pre_agent_point = agent.cur_point
             r = agent.update(move,self.map)
-            done = self.time >= self.time_limits
+            done = terminated
             reward = 0
-            if self.is_captured(agent.cur_point) : 
+            if self.is_captured(agent.cur_point) and not terminated: 
                 done = True
-                reward = 200
+                reward = 700
             else:
                 pre_distance = np.linalg.norm(np.array(pre_agent_point) - np.array(self.target.cur_point)) 
-                time_penalty = -0.07   # calculate the reward
+                time_penalty = -0.1   # calculate the reward
                 #approach_reward = 150
                 new_distance = np.linalg.norm(np.array(agent.cur_point) - np.array(self.target.cur_point))
                 if pre_distance - new_distance > 0:
